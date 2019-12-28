@@ -1,0 +1,3 @@
+root: '/Users/rob/Documents/Projects/costor/costor_client'
+server: 'https://localhost:8000'
+agentid: 'testagent0001'
