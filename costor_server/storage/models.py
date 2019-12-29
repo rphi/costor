@@ -15,7 +15,7 @@ class UploadSession(models.Model):
     # package parts are stored in relatedfield packageparts
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=1)
-    # status can be "N": new, "U": uploading, "F": failed, "V": verfifying, "M": merging, "C": complete
+    # status can be "N": new, "U": uploading, "F": failed, "V": verfifying, "C": complete
 
 
 class UploadPackage(models.Model):
@@ -33,4 +33,3 @@ class DbFile(models.Model):
     hash = models.CharField(max_length=32, blank=False, null=False)
     timestamp = models.DateTimeField(auto_now_add=True)
     data = models.FileField(upload_to="storage")
-

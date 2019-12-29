@@ -1,9 +1,13 @@
+from typing import Dict
+
 from pony.orm import *
 from datetime import datetime
 from config import Config
-from hasher import DirObject
+from hasher import DirObject, sha1str
+from tqdm import tqdm
+from time import sleep
 
-DEBUG = True
+DEBUG = False
 
 
 def printd(str):
@@ -32,18 +36,31 @@ class Db:
         root = Required('BackupRoot', reverse='snapshots')
         parent = Optional('Snapshot', reverse='child')
         child = Optional('Snapshot', reverse='parent')
+        primes = Set('Prime', reverse='snapshots')
 
     # anything included in the backup tree
     # type can be "file" or "dir" (or "sym")
     class Object(db.Entity):
-        hash = PrimaryKey(str)
+        id = PrimaryKey(str)  # sha(path+hash)
+        hash = Required(str)
         name = Required(str)
+        prime = Optional('Prime', reverse='objects')
         path = Required(str)
         type = Required(str)
         stat = Required(str)
         children = Set('Object', reverse='parent')
         parent = Optional('Object', reverse='children')
         snapshots = Set('Snapshot', reverse='objects')
+
+    # file path to object hash mappings
+    class Prime(db.Entity):
+        id = PrimaryKey(str)  # sha(path+hash)
+        filehash = Required(str)
+        path = Required(str)
+        firstseen = Required(datetime)
+        lastseen = Required(datetime)
+        objects = Set('Object', reverse='prime')
+        snapshots = Set('Snapshot', reverse=None)
 
     def init(self):
         print('-> Initializing local metadata database')
@@ -71,7 +88,6 @@ class Db:
         snapshot = snapshot[0]
         print("-> Found previous snapshot metadata")
         print("📅 Last completed update was at " + str(snapshot.timestamp))
-        print("-> Continuing with incremental backup")
         return snapshot
 
     @db_session
@@ -101,20 +117,24 @@ class Db:
 
     @db_session
     def finalizesnapshot(self, s: Snapshot):
-        s.complete = True
+        self.Snapshot[s.id].complete = True
+        print("-> finalized snapshot")
 
     @db_session
-    def addObject(self, obj: DirObject, objhash: str, s: Snapshot):
+    def addobject(self, obj: DirObject, objectid: str, s: Snapshot) -> (Object, bool):
+        objhash = obj.gethash()
         if obj.type is "dir":
-            eobj = self.Object.get(hash=objhash)
+            eobj = self.Object.get(id=objectid)
             if eobj:
                 printd("-> found matching hash for obj in DB, attaching to snapshot")
-                eobj.snapshots.add(s.id)
-                return
+                eobj.snapshots.add(self.Snapshot[s.id])
+                return eobj, False
             nobj = self.Object(
+                id=objectid,
                 hash=objhash,
                 name=obj.name,
                 path=obj.path,
+                prime=None,
                 type="dir",
                 stat=str(obj.stat),
                 # can't set parent, as parent may not exist in DB yet,
@@ -130,18 +150,75 @@ class Db:
             printd("-> created new Object for dir at %s with %i children"
                    % (obj.path, len(obj.children)))
 
+            return nobj, True
+
         elif obj.type is "file":
-            eobj = self.Object.get(hash=objhash)
+            eobj = self.Object.get(id=objectid)
             if eobj:
                 printd("-> found matching hash for obj in DB, attaching to snapshot")
                 eobj.snapshots.add(self.Snapshot[s.id])
-                return
+                return eobj, False
+            primeobj, new = self.addprime(obj.path, objhash, s)
             nobj = self.Object(
+                id=objectid,
                 hash=objhash,
                 name=obj.name,
                 path=obj.path,
+                prime=primeobj,
                 type="file",
                 stat=str(obj.stat),
                 snapshots=self.Snapshot[s.id]
             )
+
             printd("-> created new Object for file at %s" % obj.path)
+            return nobj, True
+
+    @db_session
+    def addprime(self, path: str, hash: str, snapshot: Snapshot) -> (Prime, bool):
+        printd("-> adding prime for path %s" % path)
+        pathid = sha1str(path+hash)
+        eobj = self.Prime.get(id=pathid)
+        if eobj:
+            printd("-> found matching prime in DB")
+            printd("-> hash unchanged, updating lastseen")
+            eobj.lastseen = datetime.now()
+            eobj.snapshots.add(self.Snapshot[snapshot.id])
+            return eobj, False
+
+        printd("-> creating new prime in DB")
+        obj = self.Prime(
+            id=pathid,
+            path=path,
+            filehash=hash,
+            firstseen=datetime.now(),
+            lastseen=datetime.now()
+        )
+        obj.snapshots.add(self.Snapshot[snapshot.id])
+        return obj, True
+
+    @db_session
+    def getobjectsforsnapshot(self, snapshot: Snapshot) -> [Object]:
+        return select(o for o in self.Object if snapshot in o.snapshots).fetch()
+
+    @db_session
+    def getprimesforobjects(self, objects: [Object]) -> [Prime]:
+        return [o.prime for o in objects if o.prime is not None]
+
+    @db_session
+    def bulkaddobject(self, dirobjs: Dict[str, DirObject], currentsnapshot: Snapshot):
+        # fairly sure this method means we share a db_session for the entire import, which
+        # speeds things up somewhat..
+
+        # setup progress bar
+        sleep(0.2)
+        items = tqdm(dirobjs.items(), desc="Writing: ", unit=" entries", dynamic_ncols=True, leave=True)
+        newentries = 0
+
+        for k, o in items:
+            _, new = self.addobject(o, k, currentsnapshot)
+            if new:
+                newentries += 1
+
+        items.close()
+        sleep(0.2)  # allow progress bar to sort itself out
+        return newentries, len(dirobjs)

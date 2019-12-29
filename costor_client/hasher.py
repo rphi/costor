@@ -11,8 +11,11 @@ import os
 import hashlib
 from collections import OrderedDict
 
-from scandir import scandir
+from scandir import scandir, walk
 from typing import Dict, List
+
+from tqdm import tqdm
+from time import sleep
 
 DEBUG = False
 
@@ -69,14 +72,17 @@ class DirObject:
         else:
             raise Exception("Unknown DirObject type %s" % self.type)
 
+    def getid(self):
+        return sha1str(self.path + self.gethash())
+
 
 class HashTreeMaker:
-    filesources = {}
     dirobjects = OrderedDict()
     topdirobj = None
+    prog = None
 
     def __hashdir(self, name: str, path: str, stat: os.stat_result):
-        childhashes = []
+        childids = []
         for entry in scandir(path):
             printd('scandir item: %s' % entry.path)
             if entry.is_symlink():
@@ -91,27 +97,26 @@ class HashTreeMaker:
                 inode = entry.inode()
                 printd('\t item is DIRECTORY with inode %i, drilling down:' % inode)
                 dirobj = self.__hashdir(entry.name, entry.path, entry.stat())
-                objhash = dirobj.gethash()
+                objid = dirobj.getid()
                 # add object to global dict
-                self.dirobjects[objhash] = dirobj
+                self.dirobjects[objid] = dirobj
                 # link item as child to this dir
-                childhashes.append(objhash)
+                childids.append(objid)
+                # update progress bar
+                self.prog.update()
             elif entry.is_file():
                 filehash = sha1file(entry.path)
                 printd('\t item is FILE with hash %s' % filehash)
                 printd('\t\tCreating DirObject for file.')
                 obj = DirObject()
                 obj.loadfile(entry.name, entry.path, entry.stat(), filehash)
+                objid = obj.getid()
                 # add object to global dict
-                self.dirobjects[filehash] = obj
+                self.dirobjects[objid] = obj
                 # link item as child to this dir
-                childhashes.append(filehash)
-                # add file source hash->source mapping
-                if filehash not in self.filesources:
-                    self.filesources[filehash] = entry.path
-                    printd("\t\tNew hash, adding to file mappings.")
-                else:
-                    printd("\t\tHash collision! Skipping.")
+                childids.append(objid)
+                # update progress bar
+                self.prog.update()
             else:
                 raise Exception("Unknown file type")
         dirobject = DirObject()
@@ -119,30 +124,37 @@ class HashTreeMaker:
             name=name,
             path=path,
             stat=stat,
-            children=childhashes
+            children=childids
         )
-        dirhash = dirobject.gethash()
+        dirid = dirobject.getid()
         printd('-> Completed dir %s, committing dirobject' % path)
-        if dirhash not in self.dirobjects:
-            self.dirobjects[dirhash] = dirobject
-            printd("\t\tNew hash %s, adding to directory store." % dirhash)
+        if dirid not in self.dirobjects:
+            self.dirobjects[dirid] = dirobject
+            printd("\t\tNew hash %s, adding to directory store." % dirid)
         else:
             printd("\t\tHash collision! Skipping.")
         return dirobject
 
     def make(self, path):
         if self.topdirobj:
-            raise Exception("This has already been used.")
+            raise Exception("This instance has already been used.")
         stat = os.stat(path)
         name = path.split('/')[-1]
+
+        # setup progress bar
+        items = sum([len(files) for r, d, files in walk(path)])
+        self.prog = tqdm(desc='Building', total=items, unit=' items', dynamic_ncols=True, leave=True)
+
+        # build dirobjects
         self.topdirobj = self.__hashdir(name, path, stat)
+
+        # close progress bar
+        self.prog.close()
+        sleep(0.2)
         return self.topdirobj.gethash()
 
     def gettopobj(self) -> DirObject:
         return self.topdirobj
-
-    def getfilesources(self) -> Dict[str, str]:
-        return self.filesources
 
     def getdirobjects(self) -> Dict[str, DirObject]:
         return self.dirobjects
