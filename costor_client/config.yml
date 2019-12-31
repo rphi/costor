@@ -1,3 +1,4 @@
 root: '/Users/rob/Documents/Projects/costor'
-server: 'https://localhost:8000'
+server: 'http://localhost:8000/'
 agentid: 'testagent0001'
+authtoken: 'ba293ba936506cbcc661636150ae6c786a16bb85'

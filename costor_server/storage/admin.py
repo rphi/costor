@@ -1,16 +1,11 @@
 from django.contrib import admin
-from .models import UploadSession, UploadPackage, DbFile
+from .models import UploadSession, DbFile
 
 
 # Register your models here.
 
 @admin.register(UploadSession)
 class UploadSessionAdmin(admin.ModelAdmin):
-    pass
-
-
-@admin.register(UploadPackage)
-class UploadPackageAdmin(admin.ModelAdmin):
     pass
 
 

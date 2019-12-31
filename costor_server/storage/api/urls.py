@@ -16,7 +16,7 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from rest_framework import routers, serializers, viewsets
 
-from .views import upload
+from .views import upload, authcheck
 
 
 router = routers.DefaultRouter()
@@ -24,6 +24,8 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path('upload/new', upload.create_session),
     path('upload/append', upload.append_to_session),
-    path('upload/finalize', upload.finalise_package),
+    path('upload/status', upload.get_status),
+    path('upload/checkforobj', upload.check_for_object),
+    path('authcheck', authcheck.auth_check),
     path('', include(router.urls))
 ]

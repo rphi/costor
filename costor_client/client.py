@@ -4,16 +4,39 @@ from config import Config
 
 from tqdm import tqdm
 from time import sleep
+import requests
 
 
 class ServerClient:
     def __init__(self, conf: Config):
-        self.config = conf
+        self.agentid = conf.opts['agentid']
+        self.server = conf.opts['server']
+        self.authtoken = conf.opts['authtoken']
+
+    def post(self, path, body, files=None):
+        queryurl = self.server + path
+        headers = {'Authorization': f'Token {self.authtoken}'}
+        r = requests.post(url=queryurl, headers=headers, data=body, files=files)
+        return r
+
+    def get(self, path, params=None):
+        queryurl = self.server + path
+        headers = {'Authorization': f'Token {self.authtoken}'}
+        r = requests.get(url=queryurl, headers=headers, params=params)
+        return r
 
     def auth(self):
         # TODO: test authentication with server
         print("🔗 Connecting to server at %s with agent ID '%s'" %
-              (self.config.opts['server'], self.config.opts['agentid']))
+              (self.server, self.agentid))
+
+        payload = {'agent': self.agentid}
+        r = self.get('storage/api/authcheck', params=payload)
+        print(r)
+        print(r.text)
+        if r.status_code is not 200:
+            raise Exception('Authentication failure')
+
         print("👍 Authentication success to CoStor")
         return True
 

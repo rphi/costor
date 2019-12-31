@@ -119,11 +119,9 @@ def main():
 
 def test():
     conf = config.Config()
-    db = Db(conf)
-    db.init()
-    root = db.getorcreateroot(conf.opts['root'])
-    lastsnapshot = db.getlatestsnapshot(root)
-    print(db.getobjectsforsnapshot(lastsnapshot))
+    client = ServerClient(conf)
+    client.auth()
 
 
-main()
+#main()
+test()

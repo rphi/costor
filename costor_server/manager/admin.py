@@ -6,5 +6,4 @@ from .models import Agent
 
 @admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
-    readonly_fields = ('id',)
     pass

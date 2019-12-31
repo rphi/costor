@@ -77,9 +77,10 @@ class DirObject:
 
 
 class HashTreeMaker:
-    dirobjects = OrderedDict()
-    topdirobj = None
-    prog = None
+    def __init__(self):
+        self.dirobjects = OrderedDict()
+        self.topdirobj = None
+        self.prog = None
 
     def __hashdir(self, name: str, path: str, stat: os.stat_result):
         childids = []

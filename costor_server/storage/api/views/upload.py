@@ -5,16 +5,11 @@ from rest_framework import permissions
 from rest_framework.exceptions import APIException
 from rest_framework.decorators import parser_classes
 from django.shortcuts import get_object_or_404
-from django.core.files import File
-from django.core.files.base import ContentFile
-from django.core.files.storage import FileSystemStorage
 
-import json
-import hashlib
-
-from storage.models import UploadPackage, UploadSession, DbFile
+from storage.models import UploadSession, DbFile
 from manager.models import Agent
 
+import json
 
 @api_view(['PUT'])
 @permission_classes([permissions.AllowAny])
@@ -24,20 +19,23 @@ def create_session(request):
     :param request:
     :return:
     """
-    if not all(key in request.data for key in ['agent', 'parts', 'hash', 'identifier']):
+    if not all(key in request.data for key in ['parts', 'hash']):
         raise APIException(
             detail="Missing parameters",
             code=400
         )
 
     agent = get_object_or_404(Agent, id=request.data['agent'])
+    if request.user not in agent.users:
+        raise APIException(
+            detail="You don't have permission to work on this agent",
+            code=403
+        )
 
     session = UploadSession.objects.create(
         agent=agent,
-        identifier=request.data['identifier'],
         totalparts=request.data['parts'],
         sessionhash=request.data['hash'],
-        status="N"
     )
 
     session.save()
@@ -49,7 +47,7 @@ def create_session(request):
 @parser_classes([MultiPartParser])
 @permission_classes([permissions.AllowAny])
 def append_to_session(request):
-    if not all(key in request.data for key in ['session', 'sequenceno', 'hash', 'file']):
+    if not all(key in request.data for key in ['session', 'sequenceno', 'hash']) and 'data' in request.FILES:
         raise APIException(
             detail="Missing parameters",
             code=400
@@ -57,100 +55,46 @@ def append_to_session(request):
 
     session = get_object_or_404(UploadSession, id=request.data['session'])
 
-    if session.status == "N":
-        session.status = "U"
-    elif session.status != "U":
-        return Response("Error session closed")
+    if request.user not in session.agent.users:
+        raise APIException(
+            detail="You don't have permission to work on this agent",
+            code=403
+        )
 
-    if int(request.data['sequenceno']) >= session.totalparts:
-        return Response("Package number out of range")
+    session.append(request.FILES['data'], request.data['hash'], request.data['sequenceno'])
 
-    package = UploadPackage.objects.filter(session=session, sequenceno=request.data['sequenceno'])
+    if session.status is "C":
+        return Response("Successfully uploaded file, all parts received")
+    if session.status is "U":
+        return Response("Received part.")
 
-    if package.exists():
-        return Response("Already recieved this package number")
 
-    file = File(request.data['file'])
-    hash = request.data['hash']
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_status(request):
+    session = get_object_or_404(UploadSession, id=request.data['session'])
 
-    md5 = hashlib.md5()
-    for chunk in file.chunks():
-        md5.update(chunk)
-    md5sum = md5.hexdigest()
+    if request.user not in session.agent.users:
+        raise APIException(
+            detail="You don't have permission to work on this agent",
+            code=403
+        )
 
-    if hash != md5sum:
-        return Response(f"Hash mismatch, rejecting package, please try again. Expected {hash}, got {md5sum}")
-
-    package = UploadPackage.objects.create(
-        session=session,
-        sequenceno=request.data['sequenceno'],
-        data=request.data['file'],
-        hash=hash,
-        complete=True,
-        valid=True
-    )
-
-    package.save()
-
-    return Response("done")
-
+    return Response(f'Session status: {session.status}, got {session.receivedparts} of {session.expectedparts}')
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
-def finalise_package(request):
-    """
-    Mark package as complete and request verification
-    :param request:
-    :return:
-    """
-
-    if not 'session' in request.data:
+def check_for_object(request):
+    if not 'objects' in request.data:
         raise APIException(
-            detail="Missing session ID",
+            detail="Missing parameters",
             code=400
         )
 
-    session = get_object_or_404(UploadSession, id=request.data['session'])
+    results = {}
 
-    if session.totalparts != session.packageparts.count():
-        session.status = "E"
-        session.save()
-        return "Error missing packageparts"
+    for objid in request.data['objects']:
+        r = DbFile.objects.filter(id=objid).exists()
+        results[objid] = r
 
-    # create empty file to use in merge process
-
-    storage = FileSystemStorage(location='media/storage/')
-
-    with open(storage.location + '/' + session.sessionhash + '+' + session.identifier, 'w+b') as f:
-        file = File(f)
-
-        parts = session.packageparts.order_by('sequenceno').all()
-
-        for part in parts:
-            print(f"appending part {part.sequenceno} to file")
-            file.write(part.data.read())
-            print(f"append done, new size {len(file)}")
-
-        file.close()
-        file.open('r')
-
-        md5 = hashlib.md5()
-        # for chunk in file.chunks():
-        #     md5.update(chunk)
-        # md5sum = md5.hexdigest()
-
-        if True: #md5sum == session.sessionhash:
-            # upload was good
-            fileobject = DbFile.objects.create(
-                agent=session.agent,
-                hash=session.sessionhash,
-                data=file
-            )
-            fileobject.save()
-
-            session.delete()
-
-        else:
-            return Response(f"Error merging file, mismatched hashes. Expected {session.sessionhash}, got {totalhash}")
-
-    return Response("done")
+    return json.dumps(results)
