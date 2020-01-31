@@ -11,7 +11,7 @@ from manager.models import Agent
 
 import json
 
-@api_view(['PUT'])
+@api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def create_session(request):
     """
@@ -25,8 +25,8 @@ def create_session(request):
             code=400
         )
 
-    agent = get_object_or_404(Agent, id=request.data['agent'])
-    if request.user not in agent.users:
+    agent = get_object_or_404(Agent, name=request.data['agent'])
+    if request.user not in agent.users.all():
         raise APIException(
             detail="You don't have permission to work on this agent",
             code=403
@@ -34,13 +34,13 @@ def create_session(request):
 
     session = UploadSession.objects.create(
         agent=agent,
-        totalparts=request.data['parts'],
-        sessionhash=request.data['hash'],
+        expectedparts=request.data['parts'],
+        fullhash=request.data['hash'],
     )
 
     session.save()
 
-    return Response(f"Upload session created with ID: {session.id}")
+    return Response(json.dumps({"sessionid": str(session.id)}))
 
 
 @api_view(['POST'])
@@ -55,13 +55,13 @@ def append_to_session(request):
 
     session = get_object_or_404(UploadSession, id=request.data['session'])
 
-    if request.user not in session.agent.users:
+    if request.user not in session.agent.users.all():
         raise APIException(
             detail="You don't have permission to work on this agent",
             code=403
         )
 
-    session.append(request.FILES['data'], request.data['hash'], request.data['sequenceno'])
+    session.append(request.FILES['data'], request.data['hash'], int(request.data['sequenceno']))
 
     if session.status is "C":
         return Response("Successfully uploaded file, all parts received")
@@ -74,7 +74,7 @@ def append_to_session(request):
 def get_status(request):
     session = get_object_or_404(UploadSession, id=request.data['session'])
 
-    if request.user not in session.agent.users:
+    if request.user not in session.agent.users.all():
         raise APIException(
             detail="You don't have permission to work on this agent",
             code=403
@@ -84,17 +84,23 @@ def get_status(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
-def check_for_object(request):
-    if not 'objects' in request.data:
+def check_for_primes(request):
+    if not 'primes' in request.data:
         raise APIException(
             detail="Missing parameters",
             code=400
         )
 
-    results = {}
+    primes = request.data['primes'].split(',')
 
-    for objid in request.data['objects']:
+    results = []
+
+    for objid in primes:
         r = DbFile.objects.filter(id=objid).exists()
-        results[objid] = r
+        results.append((objid, r))
 
-    return json.dumps(results)
+    res = json.dumps(results)
+
+    print(res)
+
+    return Response(res)

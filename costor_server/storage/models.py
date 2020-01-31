@@ -28,7 +28,7 @@ class UploadSession(models.Model):
     # status can be "N": new, "U": uploading, "W": writing, "F": failed, "V": verfifying, "C": complete
 
     def save(self, *args, **kwargs):
-        if not self.target and not self.id:
+        if not self.target and self.status == "N":
             # This is a new session, we need to create a file for it
             file = DbFile(id=self.fullhash)
             file.save()
@@ -44,8 +44,7 @@ class UploadSession(models.Model):
 
         nextpart = self.receivedparts + 1
         if sequenceno != nextpart:
-            raise Exception("Received file part out of order, expecting part %i of %i, got part %i" %
-                            (nextpart, self.expectedparts, sequenceno))
+            raise Exception(f"Received file part out of order, expecting part {nextpart} of {self.expectedparts}, got part {sequenceno}")
         if sequenceno > self.expectedparts:
             raise Exception("Unexpected file part, received part %i, only expecting %i" %
                             (sequenceno, self.expectedparts))

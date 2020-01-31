@@ -54,13 +54,18 @@ class Db:
 
     # file path to object hash mappings
     class Prime(db.Entity):
-        id = PrimaryKey(str)  # sha(path+hash)
-        filehash = Required(str)
-        path = Required(str)
-        firstseen = Required(datetime)
-        lastseen = Required(datetime)
+        filehash = PrimaryKey(str)
+        paths = Set('Path', reverse='target')
+        firstseen = Required(datetime, sql_default='CURRENT_TIMESTAMP')
+        lastseen = Required(datetime, sql_default='CURRENT_TIMESTAMP')
         objects = Set('Object', reverse='prime')
         snapshots = Set('Snapshot', reverse=None)
+
+    class Path(db.Entity):
+        target = Required('Prime', reverse='paths')
+        path = Required(str)
+        valid = Required(bool, auto=True)
+        timestamp = Required(datetime, sql_default='CURRENT_TIMESTAMP')
 
     def init(self):
         print('-> Initializing local metadata database')
@@ -121,6 +126,15 @@ class Db:
         print("-> finalized snapshot")
 
     @db_session
+    def __create_path(self, path: str, target: Prime):
+        path = self.Path(
+            path=path,
+            target=target,
+            valid=True
+        )
+        return path
+
+    @db_session
     def addobject(self, obj: DirObject, objectid: str, s: Snapshot) -> (Object, bool):
         objhash = obj.gethash()
         if obj.type is "dir":
@@ -176,23 +190,29 @@ class Db:
     @db_session
     def addprime(self, path: str, hash: str, snapshot: Snapshot) -> (Prime, bool):
         printd("-> adding prime for path %s" % path)
-        pathid = sha1str(path+hash)
-        eobj = self.Prime.get(id=pathid)
+        eobj = self.Prime.get(filehash=hash)
         if eobj:
             printd("-> found matching prime in DB")
-            printd("-> hash unchanged, updating lastseen")
+            epath = select(p for p in eobj.paths if p.path == path)
+            if epath.exists:
+                printd("-> path already mapped to prime")
+            else:
+                printd("-> path not mapped to prime, adding")
+                npath = self.__create_path(path=path, target=eobj)
             eobj.lastseen = datetime.now()
             eobj.snapshots.add(self.Snapshot[snapshot.id])
             return eobj, False
-
         printd("-> creating new prime in DB")
         obj = self.Prime(
-            id=pathid,
-            path=path,
             filehash=hash,
             firstseen=datetime.now(),
             lastseen=datetime.now()
         )
+        npath = self.__create_path(path=path, target=obj)
+        printd("-> invalidating any other primes attached to this path")
+        epaths = select(p for p in self.Path if p.target != obj and p.path == path)
+        for p in epaths:
+            p.valid = False
         obj.snapshots.add(self.Snapshot[snapshot.id])
         return obj, True
 
@@ -222,3 +242,12 @@ class Db:
         items.close()
         sleep(0.2)  # allow progress bar to sort itself out
         return newentries, len(dirobjs)
+
+    @db_session
+    def get_prime_hash(self, prime: Prime):
+        return prime.filehash
+
+    @db_session
+    def get_prime_path(self, prime: Prime):
+        path = select(p for p in prime.paths if p.valid).order_by(desc(self.Path.timestamp))
+        return path.first()

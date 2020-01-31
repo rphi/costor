@@ -45,9 +45,9 @@ def pushmeta(objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
 
 
 def pushprimes(primes: [Db.Prime], client: ServerClient):
-    primeids = [p.id for p in primes]
-    missingprimeids = client.queryprimes(primeids)
-    missingprimes = [p for p in primes if p.id in missingprimeids]
+    primehashes = [p.filehash for p in primes]
+    missingprimehashes = client.queryprimes(primehashes)
+    missingprimes = [p for p in primes if p.filehash in missingprimehashes]
 
     print("📦 Pushing missing file primes to server (this may take some time)")
 
@@ -98,7 +98,7 @@ def main():
     Sync with CoStor Server
     '''
     print("\n============== SYNCING WITH COSTOR SERVER ===============  ")
-    client = ServerClient(conf)
+    client = ServerClient(conf, db)
     client.auth()
 
     print("⬆️ Begin pushing data to server:")
@@ -123,5 +123,5 @@ def test():
     client.auth()
 
 
-#main()
-test()
+main()
+#test()
