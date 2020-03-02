@@ -1,0 +1,8 @@
+.texpadtmp/
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+*.toc
+
