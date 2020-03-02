@@ -18,7 +18,7 @@ def auth_check(request):
             code=403
         )
 
-    print(request.GET)
+    #print(request.GET)
     if 'agent' not in request.GET:
         return Response(f'Authenticated as {request.user.username} with no agent')
 

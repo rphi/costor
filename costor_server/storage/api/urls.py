@@ -26,6 +26,7 @@ urlpatterns = [
     path('upload/append', upload.append_to_session),
     path('upload/status', upload.get_status),
     path('upload/checkforprimes', upload.check_for_primes),
+    path('upload/checkforobjects', upload.check_for_objects),
     path('authcheck', authcheck.auth_check),
     path('', include(router.urls))
 ]
