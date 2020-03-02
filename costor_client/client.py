@@ -32,7 +32,6 @@ class ServerClient:
         return r
 
     def auth(self):
-        # TODO: test authentication with server
         print("🔗 Connecting to server at %s with agent ID '%s'" %
               (self.server, self.agentid))
 
@@ -58,8 +57,8 @@ class ServerClient:
             if not exists:
                 missing.append(primehash)
 
-        print("-> Found %i of %i primes already backed up ([n] saving)" % (len(primehashes) - len(missing), len(primehashes)))
-        missingprimehashes = primehashes
+        print("-> Found %i of %i primes already backed up (%i%% saving)" % (len(primehashes) - len(missing), len(primehashes), int(((len(primehashes) - len(missing))/len(primehashes))*100)))
+        missingprimehashes = missing
         print("-> need to upload %i primes" % len(missingprimehashes))
         return missingprimehashes
 
@@ -75,13 +74,23 @@ class ServerClient:
 
         chunkcount = ceil(primesize / chunksize)
 
-        print("Prime at path %s is %i bytes, needs %i chunks" % (primepath, primesize, chunkcount))
+        # print("Prime at path %s is %i bytes, needs %i chunks" % (primepath, primesize, chunkcount))
 
-        r = self.post('storage/api/upload/new', body={'parts': chunkcount, 'hash': primehash})
+        r = self.post('storage/api/upload/new', body={
+            'parts': chunkcount,
+            'hash': primehash,
+            'timestamp': self.db.get_prime_timestamp(prime)
+        })
 
         result = json.loads(r.json())
 
-        prog = tqdm(desc='Uploading chunks.', total=chunkcount, unit='*100MB')
+        if result['sessionid'] == None:
+            if result['code'] == 'seenbefore':
+                #print("Server has already seen this file, ignoring")
+                return
+            raise Exception("Unknown response from server when creating new session")
+
+        #prog = tqdm(desc='Uploading chunks.', total=chunkcount, unit='*100MB')
 
         sequenceno = 0
 
@@ -103,20 +112,35 @@ class ServerClient:
                               'data': chunk
                           }
                           )
-                prog.update()
+                #prog.update()
 
-        prog.close()
+        #prog.close()
         return
 
-    def pushobjects(self, objects: List[Db.Object]):
-        # TODO push object metadata to server using single JSON payload
+    def pushobjects(self, snapshot: Db.Snapshot, objects: List[Db.Object]):
+        dump = self.db.dump_snapshot(snapshot)
+
+        with open('dump.json', 'w') as outfile:
+            json.dump(dump, outfile)
+
         return objects
 
     def queryobjects(self, objectids: List[str]) -> List[str]:
         print("🔍 Looking for existing object definitions on server")
-        # TODO make request to server with list of IDs, querying for missing entries
 
-        print("-> Found [n] of [n] objects already backed up ([n]% saving)")
-        missingobjectids = objectids
+        r = self.post('storage/api/upload/checkforobjects', body={'objects': ','.join(objectids)})
+
+        results = json.loads(r.json())
+
+        missing = []
+        for (objectid, exists) in results:
+            if not exists:
+                missing.append(objectid)
+
+        print("-> Found %i of %i objects already backed up (%i%% saving)" % (
+            len(objectids) - len(missing), len(objectids),
+            int(((len(objectids) - len(missing)) / len(objectids)) * 100))
+        )
+        missingobjectids = missing
         print("-> need to upload %i objects" % len(missingobjectids))
         return missingobjectids

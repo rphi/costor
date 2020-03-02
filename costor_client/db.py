@@ -34,6 +34,7 @@ class Db:
         synced = Required(bool)
         objects = Set('Object', reverse='snapshots')
         root = Required('BackupRoot', reverse='snapshots')
+        topobject = Optional('Object', reverse='topobjectfor')
         parent = Optional('Snapshot', reverse='child')
         child = Optional('Snapshot', reverse='parent')
         primes = Set('Prime', reverse='snapshots')
@@ -51,6 +52,7 @@ class Db:
         children = Set('Object', reverse='parent')
         parent = Optional('Object', reverse='children')
         snapshots = Set('Snapshot', reverse='objects')
+        topobjectfor = Optional('Snapshot')
 
     # file path to object hash mappings
     class Prime(db.Entity):
@@ -133,6 +135,12 @@ class Db:
             valid=True
         )
         return path
+
+    @db_session
+    def set_top_object(self, objid, snapshot: Snapshot):
+        ss = self.Snapshot.get(id=snapshot.id)
+        ss.topobject = self.Object.get(id=objid)
+        return
 
     @db_session
     def addobject(self, obj: DirObject, objectid: str, s: Snapshot) -> (Object, bool):
@@ -251,3 +259,49 @@ class Db:
     def get_prime_path(self, prime: Prime):
         path = select(p for p in prime.paths if p.valid).order_by(desc(self.Path.timestamp))
         return path.first()
+
+    @db_session
+    def get_prime_timestamp(self, prime: Prime):
+        p = self.Prime.get(filehash=prime.filehash)
+        return p.firstseen
+
+    @db_session
+    def dump_snapshot(self, snapshot: Snapshot):
+        ss = self.Snapshot.get(id=snapshot.id)
+
+        dump = {
+            'id': ss.id,
+            'timestamp': str(ss.timestamp),
+            'root': ss.root.id,
+            'tree': self.build_tree_from_object(ss.topobject)
+        }
+
+        if ss.child:
+            dump['child'] = ss.child.id
+
+        if ss.parent:
+            dump['parent'] = ss.parent.id
+
+        return dump
+
+    @db_session
+    def build_tree_from_object(self, top: Object):
+        tree = {
+            'id': top.id,
+            'hash': top.hash,
+            'name': top.name,
+            'path': top.path,
+            'type': top.type,
+            'stat': top.stat,
+        }
+
+        if top.prime:
+            tree['prime'] = top.prime.filehash
+
+        if top.children:
+            tree['children'] = []
+
+            for obj in top.children:
+                tree['children'].append(self.build_tree_from_object(obj))
+
+        return tree

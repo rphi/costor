@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 import hasher
@@ -25,6 +26,8 @@ def writedirobjs(htm: hasher.HashTreeMaker,
 
     total, newentries = db.bulkaddobject(dirobjects, currentsnapshot)
 
+    db.set_top_object(htm.gettopobj().getid(), currentsnapshot)
+
     db.finalizesnapshot(currentsnapshot)
 
     print("✅ Successfully finished local bookkeeping")
@@ -32,22 +35,27 @@ def writedirobjs(htm: hasher.HashTreeMaker,
     return
 
 
-def pushmeta(objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
+def querymeta(objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
     objectids = [o.id for o in objects]
     missingobjectids = client.queryobjects(objectids)
     missingobjects = [o for o in objects if o.id in missingobjectids]
-
-    client.pushobjects(objects)
-
-
-    print("✅ Upload of metadata objects complete")
     return missingobjects
+
+
+def pushmeta(snapshot: Db.Snapshot, objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
+    client.pushobjects(snapshot, objects)
+    print("✅ Upload of metadata objects complete")
+    return objects
 
 
 def pushprimes(primes: [Db.Prime], client: ServerClient):
     primehashes = [p.filehash for p in primes]
     missingprimehashes = client.queryprimes(primehashes)
     missingprimes = [p for p in primes if p.filehash in missingprimehashes]
+
+    if len(missingprimes) == 0:
+        print("-> primes already up to date")
+        return
 
     print("📦 Pushing missing file primes to server (this may take some time)")
 
@@ -105,11 +113,14 @@ def main():
 
     print("-> Gathering fresh metadata objects")
     objects = db.getobjectsforsnapshot(snapshot)
-    pushedobjects = pushmeta(objects, client)
+    missingobjects = querymeta(objects, client)
 
     print("-> Gathering primes to sync")
-    primes = db.getprimesforobjects(pushedobjects)
+    primes = db.getprimesforobjects(missingobjects)
     pushprimes(primes, client)
+
+    print("-> Pushing metadata bundle")
+    pushedobjects = pushmeta(snapshot, objects, client)
 
     print("✅ Successfully synced with server")
 
