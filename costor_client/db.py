@@ -1,4 +1,5 @@
-from typing import Dict
+from tokenize import String
+from typing import Dict, List
 
 from pony.orm import *
 from datetime import datetime
@@ -53,6 +54,7 @@ class Db:
         parent = Optional('Object', reverse='children')
         snapshots = Set('Snapshot', reverse='objects')
         topobjectfor = Optional('Snapshot')
+        depth = Required(int)
 
     # file path to object hash mappings
     class Prime(db.Entity):
@@ -162,7 +164,8 @@ class Db:
                 # can't set parent, as parent may not exist in DB yet,
                 # - parent will be assigned through reverse when children
                 # attached.
-                snapshots=self.Snapshot[s.id]
+                snapshots=self.Snapshot[s.id],
+                depth=obj.depth
             )
             if obj.children:
                 try:
@@ -189,7 +192,8 @@ class Db:
                 prime=primeobj,
                 type="file",
                 stat=str(obj.stat),
-                snapshots=self.Snapshot[s.id]
+                snapshots=self.Snapshot[s.id],
+                depth=obj.depth
             )
 
             printd("-> created new Object for file at %s" % obj.path)
@@ -226,7 +230,7 @@ class Db:
 
     @db_session
     def getobjectsforsnapshot(self, snapshot: Snapshot) -> [Object]:
-        return select(o for o in self.Object if snapshot in o.snapshots).fetch()
+        return select(o for o in self.Object if snapshot in o.snapshots).order_by(self.Object.depth).fetch()
 
     @db_session
     def getprimesforobjects(self, objects: [Object]) -> [Prime]:
@@ -266,15 +270,25 @@ class Db:
         return p.firstseen
 
     @db_session
-    def dump_snapshot(self, snapshot: Snapshot):
+    def dump_snapshot(self, snapshot: Snapshot, tree=False):
+        """
+        Get a json.dumps compatible representation of a snapshot
+
+        :param snapshot:
+        :param tree: bool for if tree is to be included in dump, default false
+        :return: json serialisable object
+        """
+
         ss = self.Snapshot.get(id=snapshot.id)
 
         dump = {
             'id': ss.id,
             'timestamp': str(ss.timestamp),
-            'root': ss.root.id,
-            'tree': self.build_tree_from_object(ss.topobject)
+            'root': ss.root.id
         }
+
+        if tree:
+            dump['tree'] = self.build_tree_from_object(ss.topobject)
 
         if ss.child:
             dump['child'] = ss.child.id
@@ -305,3 +319,50 @@ class Db:
                 tree['children'].append(self.build_tree_from_object(obj))
 
         return tree
+
+    @db_session
+    def dump_objects(self, objects: [Object]):
+        """
+        This is a flatter version of dump_snapshot, that dumps a basic object containing
+        a representation of the objects given as the parameter, ready to be json stringified
+
+        :param objects:
+        :return dump:
+        """
+        objs = [o for o in objects]
+
+        dump = []
+
+        for o in objs:
+            data = {
+                'id': o.id,
+                'hash': o.hash,
+                'name': o.name,
+                'path': o.path,
+                'type': o.type,
+                'stat': o.stat,
+                'children': [],
+                'snapshots': [],
+                'depth': o.depth
+            }
+
+            if o.prime:
+                data['prime'] = o.prime.filehash
+
+            if o.parent:
+                data['parent'] = o.parent.id
+
+            data['children'].append(self.get_ids(self.Object.get(id=o.id).children))
+            data['snapshots'].append(self.get_ids(self.Object.get(id=o.id).snapshots))
+
+            dump.append(data)
+
+        return dump
+
+    @db_session
+    def get_ids(self, objects: [Object]) -> [String]:
+        return [o.id for o in objects]
+
+    @db_session
+    def get_root_path(self, root: BackupRoot) -> String:
+        return self.BackupRoot.get(id=root.id).path

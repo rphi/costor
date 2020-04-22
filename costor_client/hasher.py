@@ -53,6 +53,7 @@ class DirObject:
         self.stat = stat
         self.type = "dir"
         self.children = children
+        self.depth = len(path.split('/'))
 
     # Initializer for files
     def loadfile(self, name: str, path: str, stat: os.stat_result, filehash: str):
@@ -61,6 +62,7 @@ class DirObject:
         self.stat = stat
         self.type = "file"
         self.hash = filehash
+        self.depth = len(path.split('/'))
 
     def gethash(self):
         if self.type is "file":

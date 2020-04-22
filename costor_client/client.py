@@ -11,6 +11,7 @@ import json
 import os
 import hashlib
 
+
 class ServerClient:
     def __init__(self, conf: Config, db: Db):
         self.agentid = conf.opts['agentid']
@@ -18,11 +19,19 @@ class ServerClient:
         self.authtoken = conf.opts['authtoken']
         self.db = db
 
-    def post(self, path, body, files=None):
+    def post(self, path, body, files=None, addagent=True):
         queryurl = self.server + path
         headers = {'Authorization': f'Token {self.authtoken}'}
-        body['agent'] = self.agentid
+        if addagent:
+            body['agent'] = self.agentid
         r = requests.post(url=queryurl, headers=headers, data=body, files=files)
+        return r
+
+    def postjson(self, path, data):
+        queryurl = self.server + path
+        headers = {'Authorization': f'Token {self.authtoken}'}
+        data['agent'] = self.agentid
+        r = requests.post(url=queryurl, headers=headers, json=data)
         return r
 
     def get(self, path, params=None):
@@ -49,6 +58,8 @@ class ServerClient:
         print("🔍 Looking for existing file primes on server")
 
         r = self.post('storage/api/upload/checkforprimes', body={'primes': ','.join(primehashes)})
+        if r.status_code is not 200:
+            raise Exception('API error')
 
         results = json.loads(r.json())
 
@@ -57,7 +68,9 @@ class ServerClient:
             if not exists:
                 missing.append(primehash)
 
-        print("-> Found %i of %i primes already backed up (%i%% saving)" % (len(primehashes) - len(missing), len(primehashes), int(((len(primehashes) - len(missing))/len(primehashes))*100)))
+        print("-> Found %i of %i primes already backed up (%i%% saving)" % (
+        len(primehashes) - len(missing), len(primehashes),
+        int(((len(primehashes) - len(missing)) / len(primehashes)) * 100)))
         missingprimehashes = missing
         print("-> need to upload %i primes" % len(missingprimehashes))
         return missingprimehashes
@@ -81,16 +94,18 @@ class ServerClient:
             'hash': primehash,
             'timestamp': self.db.get_prime_timestamp(prime)
         })
+        if r.status_code is not 200:
+            raise Exception('API error')
 
         result = json.loads(r.json())
 
         if result['sessionid'] == None:
             if result['code'] == 'seenbefore':
-                #print("Server has already seen this file, ignoring")
+                # print("Server has already seen this file, ignoring")
                 return
             raise Exception("Unknown response from server when creating new session")
 
-        #prog = tqdm(desc='Uploading chunks.', total=chunkcount, unit='*100MB')
+        # prog = tqdm(desc='Uploading chunks.', total=chunkcount, unit='*100MB')
 
         sequenceno = 0
 
@@ -102,33 +117,73 @@ class ServerClient:
 
                 sequenceno += 1
 
-                self.post('storage/api/upload/append',
-                          body={
-                              'session': result['sessionid'],
-                              'sequenceno': sequenceno,
-                              'hash': chunkhash
-                               },
-                          files={
-                              'data': chunk
-                          }
-                          )
-                #prog.update()
+                r = self.post('storage/api/upload/append',
+                              body={
+                                  'session': result['sessionid'],
+                                  'sequenceno': sequenceno,
+                                  'hash': chunkhash
+                              },
+                              files={
+                                  'data': chunk
+                              }
+                              )
+                if r.status_code is not 200:
+                    raise Exception('API error')
+                # prog.update()
 
-        #prog.close()
+        # prog.close()
         return
 
-    def pushobjects(self, snapshot: Db.Snapshot, objects: List[Db.Object]):
-        dump = self.db.dump_snapshot(snapshot)
+    def pushsnapshot(self, snapshot: Db.Snapshot):
+        dump = self.db.dump_snapshot(snapshot, tree=False)
+        dump['root'] = [self.db.get_root_path(snapshot.root)]
+
+        if 'parent' not in dump:
+            dump['parent'] = [0]
+
+        jdump = json.dumps(dump)
+
+        with open('sdump.json', 'w') as outfile:
+            outfile.write(jdump)
+
+        print(dump)
+
+        r = self.post('storage/api/upload/add_snapshot', body=dump)
+        if r.status_code is not 200:
+            print(r.text)
+            raise Exception('API error')
+
+        print(r.status_code)
+
+        return
+
+    def pushobjects(self, objects: List[Db.Object], snapshot: Db.Snapshot):
+        dump = {
+            'agent': self.agentid,
+            'objects': self.db.dump_objects(objects),
+            'root': self.db.get_root_path(snapshot.root)
+        }
+
+        jdump = json.dumps(dump)
 
         with open('dump.json', 'w') as outfile:
-            json.dump(dump, outfile)
+            outfile.write(jdump)
 
-        return objects
+        r = self.postjson('storage/api/upload/add_objects', data=dump)
+        if r.status_code is not 200:
+            print(r.text)
+            raise Exception('API error')
+
+        print(r.status_code)
+
+        return
 
     def queryobjects(self, objectids: List[str]) -> List[str]:
         print("🔍 Looking for existing object definitions on server")
 
         r = self.post('storage/api/upload/checkforobjects', body={'objects': ','.join(objectids)})
+        if r.status_code is not 200:
+            raise Exception('API error')
 
         results = json.loads(r.json())
 
@@ -139,8 +194,8 @@ class ServerClient:
 
         print("-> Found %i of %i objects already backed up (%i%% saving)" % (
             len(objectids) - len(missing), len(objectids),
-            int(((len(objectids) - len(missing)) / len(objectids)) * 100))
-        )
+            int((((len(objectids) - len(missing)) / len(objectids)) * 100)))
+              )
         missingobjectids = missing
         print("-> need to upload %i objects" % len(missingobjectids))
         return missingobjectids

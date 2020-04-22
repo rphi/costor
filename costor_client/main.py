@@ -43,10 +43,13 @@ def querymeta(objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
 
 
 def pushmeta(snapshot: Db.Snapshot, objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
-    client.pushobjects(snapshot, objects)
+    client.pushobjects(objects, snapshot)
     print("✅ Upload of metadata objects complete")
     return objects
 
+def pushsnap(snapshot: Db.Snapshot, client: ServerClient):
+    client.pushsnapshot(snapshot)
+    print("✅ Upload of snapshot definition complete")
 
 def pushprimes(primes: [Db.Prime], client: ServerClient):
     primehashes = [p.filehash for p in primes]
@@ -111,6 +114,9 @@ def main():
 
     print("⬆️ Begin pushing data to server:")
 
+    print("-> Creating snapshot definition on server")
+    pushsnap(snapshot, client)
+
     print("-> Gathering fresh metadata objects")
     objects = db.getobjectsforsnapshot(snapshot)
     missingobjects = querymeta(objects, client)
@@ -128,11 +134,4 @@ def main():
     print("All done!")
 
 
-def test():
-    conf = config.Config()
-    client = ServerClient(conf)
-    client.auth()
-
-
 main()
-#test()
