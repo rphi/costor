@@ -12,6 +12,22 @@ from django.utils.dateparse import parse_datetime
 
 # Create your models here.
 
+
+class BackupRoot(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE)
+    path = models.CharField(max_length=4096)
+
+
+class BackupSnapshot(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    seqno = models.IntegerField()
+    root = models.ForeignKey(BackupRoot, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_created=True)
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+
+
 class CustomDbFileManager(models.Manager):
     def delete(self):
         for obj in self.get_queryset():
@@ -121,13 +137,6 @@ class Directory(models.Model):
     files = models.ForeignKey
 
 
-class Snapshot(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    root = models.ForeignKey(Directory, on_delete=models.CASCADE)
-    timestamp = models.DateTimeField(auto_created=True)
-    agent = models.ForeignKey(Agent, on_delete=models.CASCADE)
-
-
 class Object(models.Model):
     id = models.CharField(max_length=64, primary_key=True)
     objhash = models.CharField(max_length=64)
@@ -136,5 +145,5 @@ class Object(models.Model):
     type = models.CharField(max_length=4)
     stat = models.CharField(max_length=255)
     prime = models.ForeignKey(DbFile, on_delete=models.CASCADE, null=True, blank=True)
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, related_name="children")
-    snapshot = models.ForeignKey(Snapshot, related_name="objects", on_delete=models.CASCADE, null=True)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name="children")
+    snapshots = models.ManyToManyField(BackupSnapshot, related_name="backup_objects")

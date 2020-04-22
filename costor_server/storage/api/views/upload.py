@@ -7,7 +7,7 @@ from rest_framework.decorators import parser_classes
 from rest_framework.parsers import JSONParser
 from django.shortcuts import get_object_or_404
 
-from storage.models import UploadSession, DbFile
+from storage.models import UploadSession, DbFile, BackupSnapshot, BackupRoot, Object
 from manager.models import Agent
 
 import json
@@ -75,6 +75,9 @@ def append_to_session(request):
         )
 
     session.append(request.FILES['data'], request.data['hash'], int(request.data['sequenceno']))
+
+    if request.data['sequenceno'] == session.expectedparts:
+        session.status = "C"
 
     if session.status is "C":
         return Response("Successfully uploaded file, all parts received")
@@ -144,10 +147,16 @@ def check_for_objects(request):
 
 
 @api_view(['POST'])
-@parser_classes([JSONParser])
 @permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
 def add_objects(request):
     r = request.data
+
+    if not all(key in ['agent', 'objects', 'root'] for key in request.data):
+        raise APIException(
+            detail="Missing parameters",
+            code=400
+        )
 
     agent = get_object_or_404(Agent, name=r['agent'])
     if request.user not in agent.users.all():
@@ -156,8 +165,106 @@ def add_objects(request):
             code=403
         )
 
-    for object in r['objects']:
-        if not [''] in object:
-            return
+    snapshots = BackupSnapshot.objects.filter(root__path=request.data['root'])
 
-    return
+    snapshotids = {}
+
+    for snap in snapshots:
+        snapshotids[snap.seqno] = snap
+
+    '''
+    class Object(models.Model):
+    id = models.CharField(max_length=64, primary_key=True)
+    objhash = models.CharField(max_length=64)
+    name = models.CharField(max_length=255)
+    path = models.CharField(max_length=4096)
+    type = models.CharField(max_length=4)
+    stat = models.CharField(max_length=255)
+    prime = models.ForeignKey(DbFile, on_delete=models.CASCADE, null=True, blank=True)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, related_name="children")
+    snapshot = models.ForeignKey(BackupSnapshot, related_name="backup_objects", on_delete=models.CASCADE, null=True)
+    '''
+
+    for o in request.data['objects']:
+        print(o)
+
+        snapshots = []
+        for s in o['snapshots'][0]:
+            snapshots.append(snapshotids.get(s))
+
+        if type == 'file':
+            prime = DbFile.objects.get(id=o['prime'])
+        else:
+            prime = None
+
+        if 'parent' in o:
+            parent = Object.objects.get(id=o['parent'])
+        else:
+            parent = None
+
+        dobj = Object(
+                id=o['id'],
+                objhash=o['hash'],
+                name=o['name'],
+                path=o['path'],
+                type=o['type'],
+                stat=o['stat'],
+                prime=prime,
+                parent=parent
+        )
+
+        dobj.save()
+        dobj.snapshots.set([snapshotids[x] for x in o['snapshots'][0]])
+
+    return Response("DONE")
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def add_snapshot(request):
+
+    if not all(key in ['agent', 'timestamp', 'root', 'id', 'parent'] for key in request.data):
+        raise APIException(
+            detail="Missing parameters",
+            code=400
+        )
+
+    agent = get_object_or_404(Agent, name=request.data['agent'])
+    if not agent:
+        raise APIException(
+            detail="Agent doesn't exist",
+            code=400
+        )
+
+    root = BackupRoot.objects.filter(path=request.data['root'], agent=request.data['agent'])
+
+    if not root.exists():
+        root = BackupRoot.objects.create(
+            agent=agent,
+            path=request.data['root']
+        )
+        root.save()
+    else:
+        root = root.first()
+
+    if int(request.data['parent']) > 0:
+        print(request.data['parent'])
+        parent = BackupSnapshot.objects.filter(agent=request.data['agent'], seqno=request.data['parent'])
+        if not parent.exists():
+            raise APIException(
+                detail="Parent snapshot doesn't exist",
+                code=400
+            )
+        parent = parent.first()
+    else:
+        parent = None
+
+    snapshot = BackupSnapshot.objects.create(
+        seqno=request.data['id'],
+        agent=agent,
+        timestamp=request.data['timestamp'],
+        root=root,
+        parent=parent
+    )
+
+    return Response(snapshot.id)

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UploadSession, DbFile, Snapshot
+from .models import UploadSession, DbFile, BackupSnapshot
 
 
 # Register your models here.
@@ -13,6 +13,6 @@ class UploadSessionAdmin(admin.ModelAdmin):
 class FileAdmin(admin.ModelAdmin):
     pass
 
-@admin.register(Snapshot)
+@admin.register(BackupSnapshot)
 class SnapshotAdmin(admin.ModelAdmin):
     pass
