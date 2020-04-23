@@ -185,6 +185,8 @@ def add_objects(request):
     snapshot = models.ForeignKey(BackupSnapshot, related_name="backup_objects", on_delete=models.CASCADE, null=True)
     '''
 
+    idmap = {}
+
     for o in request.data['objects']:
         print(o)
 
@@ -272,3 +274,34 @@ def add_snapshot(request):
     )
 
     return Response(snapshot.id)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def attach_objects(request):
+    r = request.data
+
+    print(r)
+
+    if not all(key in ['agent', 'objects', 'root', 'snapshot'] for key in request.data):
+        raise APIException(
+            detail="Missing parameters",
+            code=400
+        )
+
+    agent = get_object_or_404(Agent, name=r['agent'])
+    if request.user not in agent.users.all():
+        raise APIException(
+            detail="You don't have permission to work on this agent",
+            code=403
+        )
+
+    snapshot = get_object_or_404(BackupSnapshot, root__path=request.data['root'], seqno=r['snapshot'])
+
+    for o in r['objects']:
+        ob = Object.objects.get(id=o)
+        ob.snapshots.add(snapshot)
+        ob.save()
+
+    return Response()
