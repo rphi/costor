@@ -25,7 +25,8 @@ class BackupSnapshot(models.Model):
     root = models.ForeignKey(BackupRoot, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(auto_created=True)
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE)
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='child')
+    rootobj = models.CharField(max_length=256, blank=False, null=False)
 
 
 class CustomDbFileManager(models.Manager):

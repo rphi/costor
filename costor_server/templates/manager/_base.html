@@ -1,0 +1,57 @@
+{% load bootstrap4 %}
+{% load static %}
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>CoStor</title>
+
+    {% bootstrap_css %}
+    <link crossorigin="anonymous" rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.3.1/flatly/bootstrap.min.css" />
+    {% block pagestyles %}
+    {% endblock %}
+
+  </head>
+  <body>
+    <div class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
+        <div class="container">
+            <a class="navbar-brand" href="/">CoStor</a>
+            <ul class="navbar-nav">
+                <a class="nav-link" href="/agents">Agents</a>
+                <a class="nav-link" href="/admin">Admin</a>
+            </ul>
+            <div>
+                {% if user.is_authenticated %}
+                <a class="btn btn-secondary" href="/account/logout">Logout, {{ user.get_full_name }}?</a>
+                {% else %}
+                <a class="btn btn-secondary" href="/account/login">Log in</a>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+    <div class="container">
+      {% bootstrap_messages %}
+    </div>
+
+    <main role="main">
+      {% block content %}
+      {% endblock %}
+    </main>
+
+    <footer class="m-3">
+      <div class="container text-center text-muted">
+        CoStor backup software - <a href="https://rphi.uk">_rphi</a> 2019-20
+      </div>
+    </footer>
+  </div>
+</div>
+
+{% bootstrap_javascript jquery='full' %}
+{% block pagescripts %}
+{% endblock %}
+
+</html>

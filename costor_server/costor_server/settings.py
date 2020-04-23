@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'manager',
-    'storage'
+    'storage',
+    'bootstrap4'
 ]
 
 MIDDLEWARE = [

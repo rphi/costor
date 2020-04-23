@@ -1,0 +1,29 @@
+{% extends 'manager/_base.html' %}
+
+{% block content %}
+
+<div class="container">
+
+    <h3>Agent details:</h3>
+
+    <ul>
+        <li>{{ agent.name }}</li>
+        <li>{{ agent.users }}</li>
+        <li>{{ agent.comment }}</li>
+    </ul>
+
+    <h4>Backup roots</h4>
+
+    <ul>
+        {% for r in roots %}
+        <li>{{ r.path }} - <a href="{% url 'snapshots' r.id %}">view snapshots</a></li>
+        {% endfor %}
+    </ul>
+
+</div>
+
+{% endblock %}
+
+{% block pagescripts %}
+
+{% endblock %}

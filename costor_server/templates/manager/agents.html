@@ -1,0 +1,21 @@
+{% extends 'manager/_base.html' %}
+
+{% block content %}
+
+<div class="container">
+
+    <h3>Registered agents:</h3>
+
+    <ul>
+        {% for a in agents %}
+        <li>{{ a.name }} - <a href="{% url 'agent' a.name %}">view backups</a></li>
+        {% endfor %}
+    </ul>
+
+</div>
+
+{% endblock %}
+
+{% block pagescripts %}
+
+{% endblock %}

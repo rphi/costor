@@ -136,7 +136,7 @@ def check_for_objects(request):
     results = []
 
     for objid in objects:
-        r = DbFile.objects.filter(id=objid).exists()
+        r = Object.objects.filter(id=objid).exists()
         results.append((objid, r))
 
     res = json.dumps(results)
@@ -192,7 +192,9 @@ def add_objects(request):
         for s in o['snapshots'][0]:
             snapshots.append(snapshotids.get(s))
 
-        if type == 'file':
+        print(o['type'])
+
+        if o['type'] == 'file':
             prime = DbFile.objects.get(id=o['prime'])
         else:
             prime = None
@@ -202,18 +204,17 @@ def add_objects(request):
         else:
             parent = None
 
-        dobj = Object(
+        dobj = Object.objects.create(
                 id=o['id'],
                 objhash=o['hash'],
                 name=o['name'],
                 path=o['path'],
                 type=o['type'],
                 stat=o['stat'],
-                prime=prime,
-                parent=parent
+                parent=parent,
+                prime=prime
         )
 
-        dobj.save()
         dobj.snapshots.set([snapshotids[x] for x in o['snapshots'][0]])
 
     return Response("DONE")
@@ -223,11 +224,13 @@ def add_objects(request):
 @permission_classes([permissions.AllowAny])
 def add_snapshot(request):
 
-    if not all(key in ['agent', 'timestamp', 'root', 'id', 'parent'] for key in request.data):
-        raise APIException(
-            detail="Missing parameters",
-            code=400
-        )
+    print(request.data)
+
+    # if not all(key in ['agent', 'timestamp', 'root', 'id', 'parent'] for key in request.data):
+    #     raise APIException(
+    #         detail="Missing parameters",
+    #         code=400
+    #     )
 
     agent = get_object_or_404(Agent, name=request.data['agent'])
     if not agent:
@@ -264,7 +267,8 @@ def add_snapshot(request):
         agent=agent,
         timestamp=request.data['timestamp'],
         root=root,
-        parent=parent
+        parent=parent,
+        rootobj=request.data['rootobj']
     )
 
     return Response(snapshot.id)

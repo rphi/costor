@@ -1,0 +1,38 @@
+{% extends 'manager/_base.html' %}
+
+{% block content %}
+
+<div class="container">
+
+    <h3>Snapshots for backuproot {{ root.path }} on {{ root.agent.name }}</h3>
+
+    <ul>
+
+    </ul>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">timestamp</th>
+          <th scope="col">view</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in snaps %}
+        <tr>
+            <th scope="row">{{ s.seqno }}</th>
+            <td>{{ s.timestamp }}</td>
+            <td><a href="{% url 'tree' s.id %}">view</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+</div>
+
+{% endblock %}
+
+{% block pagescripts %}
+
+{% endblock %}

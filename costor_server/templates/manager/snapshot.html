@@ -1,0 +1,30 @@
+{% extends 'manager/_base.html' %}
+
+{% block content %}
+
+<div class="container">
+
+    <h3>snapshot {{ snap.seqno }} on {{ snap.root.agent.name }}</h3>
+    <p>Timestamp: {{ snap.timestamp }}</p>
+    <p>Root: {{ snap.root.path }}</p>
+
+    <a class="btn btn-success" href="{% url 'download' snap.id %}">Download snapshot as archive</a>
+
+    {% if snap.parent %}
+        <a class="btn btn-secondary" href="{% url 'tree' snap.parent.id %}">View previous snapshot</a>
+    {% endif %}
+    {% if snap.child.exists %}
+        <a class="btn btn-primary" href="{% url 'tree' snap.child.get.id %}">View next snapshot</a>
+    {% endif %}
+
+    <ul>
+        {% include "manager/tree_render.html" %}
+    </ul>
+
+</div>
+
+{% endblock %}
+
+{% block pagescripts %}
+
+{% endblock %}

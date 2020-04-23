@@ -1,0 +1,12 @@
+<li>
+    <strong>{{node.name}}</strong> - [{{ node.type }}] [{{ node.prime.id }}]
+    {%if node.children %}
+        <ul>
+         {%for ch in node.children.all %}
+              {%with node=ch template_name="manager/tree_render.html" %}
+                   {%include template_name%}
+              {%endwith%}
+         {%endfor%}
+         </ul>
+    {%endif%}
+</li>

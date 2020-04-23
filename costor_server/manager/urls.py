@@ -1,5 +1,4 @@
-"""costor_server URL Configuration
-
+"""cores URL Configuration
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/2.2/topics/http/urls/
 Examples:
@@ -13,16 +12,15 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import TemplateView
+from .views import browser, download
 
 urlpatterns = [
-    path('', include('manager.urls')),
-    path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls')),
-    path('storage/', include('storage.urls')),
-    path('account/', include('django.contrib.auth.urls'))
+    path('', browser.home),
+    path('agents', browser.agents, name='agents'),
+    path('agent/<name>', browser.agent, name='agent'),
+    path('snapshots/<root>', browser.snapshots, name='snapshots'),
+    path('tree/<snapshot>', browser.tree, name='tree'),
+    path('get/<snapshot>', download.get_backup, name='download')
 ]
-
-admin.site.site_header = "CoStor Admin"
-admin.site.site_title = "CoStor Admin Portal"
