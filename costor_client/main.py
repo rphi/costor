@@ -35,16 +35,23 @@ def writedirobjs(htm: hasher.HashTreeMaker,
     return
 
 
-def querymeta(objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
+def querymeta(objects: [Db.Object], client: ServerClient) -> (List[Db.Object], List[Db.Object]):
     objectids = [o.id for o in objects]
-    missingobjectids = client.queryobjects(objectids)
+    missingobjectids, needupdateids = client.queryobjects(objectids)
     missingobjects = [o for o in objects if o.id in missingobjectids]
-    return missingobjects
+    needupdates = [o for o in objects if o.id in needupdateids]
+
+    return missingobjects, needupdates
 
 
 def pushmeta(snapshot: Db.Snapshot, objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
     client.pushobjects(objects, snapshot)
     print("✅ Upload of metadata objects complete")
+    return objects
+
+def attachobjects(snapshot: Db.Snapshot, objects: [Db.Object], client: ServerClient) -> List[Db.Object]:
+    client.attachobjects(objects, snapshot)
+    print("✅ Attached reused objects")
     return objects
 
 def pushsnap(snapshot: Db.Snapshot, client: ServerClient):
@@ -96,6 +103,7 @@ def main():
     db.init()
     root = db.getorcreateroot(conf.opts['root'])
     lastsnapshot = db.getlatestsnapshot(root)
+
     if not lastsnapshot:
         print("❌ Can't find any old completed snapshots")
         print("-> Initializing full backup")
@@ -114,19 +122,33 @@ def main():
 
     print("⬆️ Begin pushing data to server:")
 
-    print("-> Creating snapshot definition on server")
-    pushsnap(snapshot, client)
+    print("-> Updating snapshot definitions on server")
 
-    print("-> Gathering fresh metadata objects")
-    objects = db.getobjectsforsnapshot(snapshot)
-    missingobjects = querymeta(objects, client)
+    (tosync, scount) = db.get_unsynced_snapshots()
 
-    print("-> Gathering primes to sync")
-    primes = db.getprimesforobjects(missingobjects)
-    pushprimes(primes, client)
+    if scount > 0:
+        print("   Need to sync %i snapshots" % scount)
 
-    print("-> Pushing metadata bundle")
-    pushedobjects = pushmeta(snapshot, objects, client)
+        for s in tosync:
+            pushsnap(s, client)
+
+            print("-> Gathering fresh metadata objects")
+            objects = db.getobjectsforsnapshot(s)
+            missingobjects, needupdate = querymeta(objects, client)
+
+            if len(missingobjects) > 0:
+                print("-> Gathering primes to sync")
+                primes = db.getprimesforobjects(missingobjects)
+                pushprimes(primes, client)
+
+            print("-> Pushing new object bundle")
+            pushedobjects = pushmeta(s, missingobjects, client)
+
+            if len(needupdate) > 0:
+                print("-> Attaching reused objects to snapshot")
+                attachedobjects = attachobjects(s, needupdate, client)
+
+            db.mark_snapshot_as_synced(s)
 
     print("✅ Successfully synced with server")
 

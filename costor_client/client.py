@@ -70,7 +70,7 @@ class ServerClient:
 
         print("-> Found %i of %i primes already backed up (%i%% saving)" % (
         len(primehashes) - len(missing), len(primehashes),
-        int(((len(primehashes) - len(missing)) / len(primehashes)) * 100)))
+        int(((len(primehashes) - len(missing)) / min(-1, len(primehashes))) * 100)))
         missingprimehashes = missing
         print("-> need to upload %i primes" % len(missingprimehashes))
         return missingprimehashes
@@ -137,6 +137,7 @@ class ServerClient:
     def pushsnapshot(self, snapshot: Db.Snapshot):
         dump = self.db.dump_snapshot(snapshot, tree=False)
         dump['root'] = [self.db.get_root_path(snapshot.root)]
+        dump['rootobj'] = [self.db.get_top_object_id(snapshot)]
 
         if 'parent' not in dump:
             dump['parent'] = [0]
@@ -164,17 +165,28 @@ class ServerClient:
             'root': self.db.get_root_path(snapshot.root)
         }
 
-        jdump = json.dumps(dump)
-
         with open('dump.json', 'w') as outfile:
-            outfile.write(jdump)
+            outfile.write(json.dumps(dump))
 
         r = self.postjson('storage/api/upload/add_objects', data=dump)
         if r.status_code is not 200:
             print(r.text)
             raise Exception('API error')
 
-        print(r.status_code)
+        return
+
+    def attachobjects(self, objects: List[Db.Object], snapshot: Db.Snapshot):
+        dump = {
+            'agent': self.agentid,
+            'objects': [o.id for o in objects],
+            'root': self.db.get_root_path(snapshot.root),
+            'snapshot': snapshot.id
+        }
+
+        r = self.postjson('storage/api/upload/attach_objects', data=dump)
+        if r.status_code is not 200:
+            print(r.text)
+            raise Exception('API error')
 
         return
 
@@ -188,14 +200,17 @@ class ServerClient:
         results = json.loads(r.json())
 
         missing = []
+        needupdate = []
         for (objectid, exists) in results:
             if not exists:
                 missing.append(objectid)
+            else:
+                needupdate.append(objectid)
 
         print("-> Found %i of %i objects already backed up (%i%% saving)" % (
             len(objectids) - len(missing), len(objectids),
             int((((len(objectids) - len(missing)) / len(objectids)) * 100)))
               )
         missingobjectids = missing
-        print("-> need to upload %i objects" % len(missingobjectids))
-        return missingobjectids
+        print("-> need to upload %i objects (and update %i)" % (len(missingobjectids), len(needupdate)))
+        return missingobjectids, needupdate

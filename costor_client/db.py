@@ -94,7 +94,15 @@ class Db:
             desc(self.Snapshot.timestamp))[:1]
         if not snapshot:
             return False
+
         snapshot = snapshot[0]
+        print(snapshot.topobject)
+
+        if not snapshot.topobject:
+            print("  [found corrupted snapshot %i, deleting]" % snapshot.id)
+            snapshot.delete()
+            return self.getlatestsnapshot(root)
+        
         print("-> Found previous snapshot metadata")
         print("📅 Last completed update was at " + str(snapshot.timestamp))
         return snapshot
@@ -366,3 +374,19 @@ class Db:
     @db_session
     def get_root_path(self, root: BackupRoot) -> String:
         return self.BackupRoot.get(id=root.id).path
+
+    @db_session
+    def get_top_object_id(self, snap: Snapshot) -> String:
+        print(self.Snapshot.get(id=snap.id))
+        return self.Snapshot.get(id=snap.id).topobject.id
+
+    @db_session
+    def get_unsynced_snapshots(self) -> ([Snapshot], int):
+        snaps = select(s for s in self.Snapshot if not s.synced).order_by(self.Snapshot.id).fetch()
+        return snaps, len(snaps)
+
+    @db_session
+    def mark_snapshot_as_synced(self, snap: Snapshot):
+        s = self.Snapshot.get(id=snap.id)
+        s.synced = True
+        return
