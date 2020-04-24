@@ -1,0 +1,39 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+    \PYG{c+c1}{\PYGZsh{} a specific run of this application}
+    \PYG{k}{class} \PYG{n+nc}{Snapshot}\PYG{p}{(}\PYG{n}{db}\PYG{o}{.}\PYG{n}{Entity}\PYG{p}{):}
+        \PYG{n+nb}{id} \PYG{o}{=} \PYG{n}{PrimaryKey}\PYG{p}{(}\PYG{n+nb}{int}\PYG{p}{,} \PYG{n}{auto}\PYG{o}{=}\PYG{n+nb+bp}{True}\PYG{p}{)}
+        \PYG{n}{timestamp} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n}{datetime}\PYG{p}{)}
+        \PYG{n}{complete} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{bool}\PYG{p}{)}
+        \PYG{n}{synced} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{bool}\PYG{p}{)}
+        \PYG{n}{objects} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Object\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}snapshots\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{root} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}BackupRoot\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}snapshots\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{topobject} \PYG{o}{=} \PYG{n}{Optional}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Object\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}topobjectfor\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{parent} \PYG{o}{=} \PYG{n}{Optional}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Snapshot\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}child\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{child} \PYG{o}{=} \PYG{n}{Optional}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Snapshot\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}parent\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{primes} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Prime\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}snapshots\PYGZsq{}}\PYG{p}{)}
+
+    \PYG{c+c1}{\PYGZsh{} anything included in the backup tree}
+    \PYG{c+c1}{\PYGZsh{} type can be \PYGZdq{}file\PYGZdq{} or \PYGZdq{}dir\PYGZdq{} (or \PYGZdq{}sym\PYGZdq{})}
+    \PYG{k}{class} \PYG{n+nc}{Object}\PYG{p}{(}\PYG{n}{db}\PYG{o}{.}\PYG{n}{Entity}\PYG{p}{):}
+        \PYG{n+nb}{id} \PYG{o}{=} \PYG{n}{PrimaryKey}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}  \PYG{c+c1}{\PYGZsh{} sha(path+hash)}
+        \PYG{n+nb}{hash} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}
+        \PYG{n}{name} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}
+        \PYG{n}{prime} \PYG{o}{=} \PYG{n}{Optional}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Prime\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}objects\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{path} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}
+        \PYG{n+nb}{type} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}
+        \PYG{n}{stat} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}
+        \PYG{n}{children} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Object\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}parent\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{parent} \PYG{o}{=} \PYG{n}{Optional}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Object\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}children\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{snapshots} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Snapshot\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}objects\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{topobjectfor} \PYG{o}{=} \PYG{n}{Optional}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Snapshot\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{depth} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n+nb}{int}\PYG{p}{)}
+
+    \PYG{c+c1}{\PYGZsh{} file path to object hash mappings}
+    \PYG{k}{class} \PYG{n+nc}{Prime}\PYG{p}{(}\PYG{n}{db}\PYG{o}{.}\PYG{n}{Entity}\PYG{p}{):}
+        \PYG{n}{filehash} \PYG{o}{=} \PYG{n}{PrimaryKey}\PYG{p}{(}\PYG{n+nb}{str}\PYG{p}{)}
+        \PYG{n}{paths} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Path\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}target\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{firstseen} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n}{datetime}\PYG{p}{,} \PYG{n}{sql\PYGZus{}default}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}CURRENT\PYGZus{}TIMESTAMP\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{lastseen} \PYG{o}{=} \PYG{n}{Required}\PYG{p}{(}\PYG{n}{datetime}\PYG{p}{,} \PYG{n}{sql\PYGZus{}default}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}CURRENT\PYGZus{}TIMESTAMP\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{objects} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Object\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}prime\PYGZsq{}}\PYG{p}{)}
+        \PYG{n}{snapshots} \PYG{o}{=} \PYG{n}{Set}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}Snapshot\PYGZsq{}}\PYG{p}{,} \PYG{n}{reverse}\PYG{o}{=}\PYG{n+nb+bp}{None}\PYG{p}{)}
+\end{Verbatim}

@@ -1,0 +1,9 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+	\PYG{k}{def} \PYG{n+nf}{gethash}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{:} \PYG{n}{DirObject}\PYG{p}{):}
+        \PYG{k}{if} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{type} \PYG{o+ow}{is} \PYG{l+s+s2}{\PYGZdq{}file\PYGZdq{}}\PYG{p}{:}
+            \PYG{k}{return} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{hash}
+        \PYG{k}{elif} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{type} \PYG{o+ow}{is} \PYG{l+s+s2}{\PYGZdq{}dir\PYGZdq{}}\PYG{p}{:}
+            \PYG{n}{shastring} \PYG{o}{=} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{name} \PYG{o}{+} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{path} \PYG{o}{+} \PYG{n+nb}{str}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{stat}\PYG{p}{)}
+            \PYG{n}{childhashes} \PYG{o}{=} \PYG{n+nb}{str}\PYG{p}{(}\PYG{n+nb}{sorted}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{children}\PYG{p}{))}
+            \PYG{k}{return} \PYG{n}{sha1str}\PYG{p}{(}\PYG{n}{shastring} \PYG{o}{+} \PYG{n}{childhashes}\PYG{p}{)}
+\end{Verbatim}

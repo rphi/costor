@@ -5,11 +5,12 @@
 % \documentclass[minf,frontabs,twoside,singlespacing,parskip,deptreport]{infthesis}  % for MInf
 \usepackage{todonotes}
 \usepackage{hyperref}
+\usepackage{minted}
 
 \begin{document}
 
 
-\title{CoStor, a peer-to-peer distributed backup solution}
+\title{CoStor, a distributed backup solution}
 
 \author{Robert Phipps}
 
@@ -19,27 +20,37 @@
 \date{\today}
 
 \abstract{
-This is an example of {\tt infthesis} style.
-The file {\tt skeleton.tex} generates this document and can be 
-used to get a ``skeleton'' for your thesis.
-The abstract should summarise your report and fit in the space on the 
-first page.
-%
-You may, of course, use any other software to write your report,
-as long as you follow the same style. That means: producing a title
-page as given here, and including a table of contents and bibliography.
+CoStor is a proof of concept cloud backup solution, making use of simple to manage 
+HTTPS requests for all communication and synchronisation across the system, allowing for 
+easy integration into existing environments. Authentication is managed by tokens and
+role-based authorisation, with configuration for the client set with an easily deployable
+YAML file.\newline
+
+This implementation makes use of two primary components, a command line client application,
+which builds a database of and fingerprints the directory tree to be backed up, and a Django
+based server application, which is used as the sync endpoint for offsite storage of backup
+data. These communicate using the HTTP API to identify file binaries and metadata that need
+to be transferred, and a multi-stage, resumable upload process is used to upload
+large files to the system.\newline
+
+It uses generic objects and datastructure fingerprints to allow server-side deduplication of
+backed up data across clients, and allows backup "snapshots" to be restored as archives from
+the web UI of the server application.
 }
 
 \maketitle
 
 \section*{Acknowledgements}
-This project makes extensive use and builds on top of concepts explored in this paper from
+
+This project makes extensive use of concepts and architectures explored in this paper from
 Paul Anderson and Le Zhang: Fast and secure laptop backups with encrypted de-duplication
 \cite{macbac-lisa}
 
+Many thanks to Paul Anderson for his supervision of this project.
+
 \tableofcontents
 
-%\pagenumbering{arabic}
+\pagenumbering{arabic}
 
 
 \chapter{Solution overview}
@@ -58,19 +69,21 @@ negates the need for complex multi-site VPNs, and simply requires a single TCP p
 be forwarded to the server from the internet.
 
 The backup datastore's metadata and directory structures are maintained inside an SQL
-database and can only be modified over the RESTful HTTP API, reducing attack surface
+database and can only be modified over the HTTP API, reducing attack surface
 compared to making use of more traditional file transfer methods like FTP, NFS or 
 SSHFS.
 
-All management is completed through a simple web UI, where clients can be configured 
-for one-touch deployment and subsequently monitored, as well as where users can browse
-the directory trees for each backup "snapshot" in the event that a file needs to be
-recovered. A full backup restore can be completed by requesting a restoration archive,
-whereby the server will build a complete archive of a snapshot, pulling data from its
-local datastore, or from other sites in the event of a remote restore.
+All management is completed through a simple web UI, where agents can be added, 
+authentication tokens can be created and the backup history subsequently monitored. 
+Users can browse the directory trees for each backup "snapshot" in the event that a file 
+needs to be recovered. A full backup restore can be completed by requesting a restoration 
+archive, whereby the server will build a complete archive of a snapshot, pulling data from its
+local datastore, or from other sites in the event of a remote restore\footnote{Remote restore 
+has not been fully implemented}.
 
 This system makes use of Django for server-side components, a Python web framework with
-fantastic ORM and enforcement of best-practices.
+fantastic ORM and enforcement of best-practices. The client side database is managed with
+PonyORM, running on top of SQLite.
 
 \clearpage
 
@@ -102,8 +115,8 @@ targeted during development.
 		something\footnote{GitLab found this to their cost in 2017 after discovering their 
 		backups hadn't been running for some time: 
 		\url{https://techcrunch.com/2017/02/01/gitlab-suffers-major-backup-failure-after-data-deletion-incident/}},
-		so CoStor needs to include built in maintenance and scheduled self-tests to ensure
-		that the system is ready when the user needs it most.
+		so CoStor needs to automatically maintain its database and include robust database 
+		integrity checking to ensure that the system is ready when the user needs it most.
 	\item \textbf{Simple deployment}
 		\subitem Again, CoStor needs to be deployable by inexperienced IT support staff
 		without prior knowledge of network filesystems, command line interfaces or web
@@ -115,10 +128,9 @@ targeted during development.
 		share configurations, multi-site VPNs and authentication systems.
 	\item \textbf{Centralised management and monitoring}
 		\subitem As this is designed to be deployed over a large number of client PCs,
-		ensuring configuration is correct could be challenging. As such, CoStor will include
-		configuration of backup clients from the server management panel, and all clients
-		will pull down configuration automatically from this central repository. Backup
-		logs will also be pushed to the server so that an administrator can monitor their
+		ensuring configuration is correct could be challenging. As such, CoStor will allow 
+		setup to be pushed to clients using a simple config file. Backup
+		logs will also be maintained on the server so that an administrator can monitor their
 		entire estate from a single place.
 	\item \textbf{Distributed and fault-tolerant file stores}
 		\subitem Leaving the best to last, CoStor's standout feature will be that backups
@@ -126,17 +138,29 @@ targeted during development.
 		over a zero-configuration HTTPS link. The system should be able to recover from the
 		loss of a server without any data loss, and allow restoration of data originating
 		from any site from any of the remaining instances of CoStor within the network.
+		\subitem \textit{(Unfortunately, distributed backup was not able to be implemented
+		ahead of the deadline for this project.)}
 \end{itemize}
 
 \section{Limitation of scope for the purposes of this project}
 
-As this project is to completed by an individual over the course of a single academic year, 
-the scope does unfortunately have to be limited somewhat. The primary goal is to complete
-a "Beta" release of the server application, with cross-site replication, web UI and ability
-to restore data, along with a barebones backup client to allow the system to be demonstrated.
+This project was proposed as a two-year task, as part of the MInf course. Due to circumstance
+changes, this project has been condensed into a single year as part of the BSci. This has 
+required many of the user interface elements and advanced features to be removed from scope.
 
-Managing filesystem metadata and ensuring consistent snapshots is a considerable problem in its
-own right.
+As such, in its current state, CoStor is a single-server solution, which would require a 
+traditional second tier of redundancy for the backup store, such as scheduled \texttt{rsync}
+tasks to a remote filestore, or hardware redundant storage including LTO tape archives. 
+Support for these is not included in the CoStor proof of concept provided here. The methodology
+and structure of a potential cross-site replication implementation is however included in this 
+report, as it offers context to a number of design decisions. As data currently does not leave
+the corporate network, backups are not encrypted at rest, and only with standard HTTP TLS in 
+flight. There is no need to restrict access to specific systems' backups as the CoStor 
+administrator will already have access to all users' documents as a network administrator.
+
+The management of local filesystem metadata was considerably more challenging than the timescale
+for this project anticipated, with the CoStor client requiring far more logic within it than was
+intended. This resulted in available time for the server application to be limited.
 
 \clearpage
 
@@ -150,10 +174,13 @@ the use of a commercial provider such as AWS S3\footnote{Amazon Web Services' bu
 storage solution} or BackBlaze B2. Both of these greatly increase cost and introduce a 
 reliance on a third party.
 
-A number of existing products have been selected as they offer the closest functionality
-to that targeted by CoStor, and are explored here:
+\subsection{Overviews}
 
-\subsection{Syncthing}
+A number of existing products have been selected as they offer the closest functionality
+to that targeted by CoStor. Here we take a high-level look at featuresets and methodologies
+used by these solutions:
+
+\subsubsection{Syncthing}
 
 Syncthing is a service targeted at consumers who want a self-hosted alternative to commercial
 cloud storage and synchronisation services such as Dropbox, Google Drive and OneDrive. The 
@@ -169,7 +196,7 @@ important information.
 
 More information is available at \url{https://syncthing.net} \cite{syncthing}
 
-\subsection{UrBackup}
+\subsubsection{UrBackup}
 
 UrBackup is closer to CoStor in its goals, as is specifically built to be used as a backup 
 system. It can auto-discover agents on the network, and begin incremental backups to its server
@@ -179,7 +206,7 @@ for management, however it does not include any built-in support for georeplicat
 
 More information is available at \url{https://www.urbackup.org/index.html} \cite{urbackup}
 
-\subsection{Hermes}
+\subsubsection{Hermes}
 
 Hermes is an "open-source redundant distributed storage network"\cite{hermes}. Although it
 doesn't come pre-packaged with components allowing it to be used as a turnkey backup system,
@@ -196,7 +223,7 @@ that I am familiar enough with to begin work on reviving.
 
 More information is available at \url{https://github.com/Hermes/hermes} \cite{hermes}
 
-\subsection{Bacula}
+\subsubsection{Bacula}
 
 Bacula is an open-source and very mature backup framework, with tools to allow a multitude of
 network configurations. Unfortunately its flexibilty does result in the software being complex
@@ -208,7 +235,7 @@ not inconsiderably expensive.
 
 More information is available at \url{https://www.bacula.org} \cite{bacula}
 
-\subsection{Amanda}
+\subsubsection{Amanda}
 
 Amanda is another backup-specific solution, again with a "community edition" being accompanied
 by a commercially supported "enterprise" version of the software. Like the other systems 
@@ -217,7 +244,7 @@ libraries, so would not be suitable for the use case targeted by CoStor.
 
 More information is available at \url{https://www.zmanda.com/amanda-community-edition.html} \cite{zmanda}
 
-\subsection{GlusterFS}
+\subsubsection{GlusterFS}
 
 The Gluster filesystem is a "software scalable network filesystem"\cite{gluster-home}, which 
 allows systems administrators to build complex filesystems across multiple physical machines
@@ -238,6 +265,86 @@ however this would be very difficult to automatically provision from the CoStor 
 and should be mostly unnecessary given the data structure used for backups.
 
 More information is available at \url{https://www.gluster.org} \cite{gluster-home}
+
+\subsection{Case study: Git}
+
+Git is one of the most well known versioning and distributed storage systems, and works in a very
+similar way to how CoStor is intended to behave. It maintains a local database of all file data, 
+storing file history within the records for each file. It supports delta-replication to one or
+many local or offsite Git servers, with the ability to recover data from any point on time that
+has been "committed" to the history.
+
+\subsubsection{Data storage}
+
+The Pro Git Second Edition documentation \cite{progit} states that "Git is a content-addressable filesystem. [...]
+What this means that at the core of Git is a simple key-value data store."
+
+Everything in Git is stored as generic objects, with their SHA-1 hash making up their unique ID
+within the datastore. These can be data objects, tree objects and commit objects, all interlinked by
+ID to form a representation of the versioned filesystem. These objects are stored as files within
+the \texttt{.git/} subdirectory created when Git is initialised. (Figure \ref{fig:gitfs})
+
+\begin{figure}
+	\includegraphics[width=0.6\paperwidth]{img/git-tree}
+	\caption{Representation of the Git content addressable filesystem \cite{progit}}
+	\label{fig:gitfs}
+\end{figure}
+
+All directory structure and file metadata is stored in the tree object for a commit, with file data
+being stored in a separate 'blob' object and referenced by the tree. This allows a single copy 
+of the file to be used as the "backup" copy for multiple commits without requiring multiple
+copies of the file to be stored, reducing disk usage considerably as most commits only touch a few
+of the files within the repository.
+
+Git also selectively processes file metadata, for example only including the three UNIX file modes for
+normal files, symlinks and executable files. This simplifies processing and makes behaviour 
+predictable for the end user. It also mitigates any chance of accidentally interacting with special
+devices such as serial ports and pipes, which could confuse the system.
+
+Occasionally, the client creates delta compressed "packfiles" of the objects, explained later.
+
+\subsubsection{Data transfer}
+
+For data transfer, Git can use either an SSH based protocol, which they call "The Smart Protocol",
+or a "Dumb" HTTP based protocol. For the purposes of CoStor, this HTTP based protocol is of more
+relevance, as we are trying to avoid reliance on "exotic"\footnote{Yes, SSH isn't exactly exotic, but port 22 is commonly blocked on company firewalls, along with networks that use an HTTP proxy for web filtering and monitoring} 
+protocols.
+
+First, the client makes a GET request to pull down the SHA-1 IDs of the branch that the user
+is interested in, or in Git terminology, the client requests the HEAD reference. Once it has
+that reference, it is able to make a further request to the specific commit required, by its
+SHA-1 ID. The commit contains a reference to its tree object, and the parent commit, which gives
+the client everything it needs to rebuild the entire commit history. Some data can be bundled into
+packfiles, in which case the Git server will simply HTTP 404 and the client will have to make a 
+few more requests to work out the packfile containing the commit.
+
+For making commits, the client first builds packfiles, which is where it takes all of the objects and 
+performs delta compression to reduce the transfer size. It looks for files that are named and sized 
+similarly before trying to calculate the difference between the files. This can drastically save on 
+space compared to uploading the "loose" data objects. And, as these packfiles contain an entire 
+copy of the Git datastore, this can be uploaded as one file to the server.
+
+\subsubsection{Evaluation}
+
+This is a very elegant solution to the problem, and allows Git to be a very simple and portable
+version control system. However, its reliance on a standard filesystem for the datastore does
+potentially make management of that data more complex, as there is no support for foreign key 
+relationships or the ability to make use of an ORM to ensure the database integrity is maintained.
+
+In the case of Git, there is normally at least one other copy of the database, so if it is 
+corrupted on the local machine, it can be rebuilt from that copy.
+
+The generalised data structure of generic "objects", representing everything the system needs to
+keep track of, however could be very easily replicated within an ORM. Storing the binary data
+separately from the file metadata can also enable us to deduplicate files across systems, with 
+not only multiple trees from the same repository sharing a blob database, but multiple trees from
+multiple systems running the backup client software and sharing the same server instance.
+
+An important thing to note, is that there appears to be no use of filesystem snapshots: Git
+relies on files not being written to or changed while it indexes the repository. This means it
+would not be suitable for backing up live application datastores or constantly changing data
+such as web server databases unless the database server application is shut down while the 
+commit is made.
 
 \section{Deployment topology}
 
@@ -289,6 +396,21 @@ The system should be as close to turnkey and zero-maintenance as possible, allow
 set up by their IT support contractors, and left to work for years at a time without much
 interference.
 
+\subsection{Revised use case}
+
+To accommodate for the limits that have been applied to the scope of the project, the current
+implementation is based off the following use case:
+
+CoStor could be used by a small organisation, which requires a central backup for specific
+directory sub-trees on networked workstations. The CoStor client is deployed along with a
+config file to these systems, and scheduled with \texttt{cron} to run out of hours, when the
+systems are not in use. These back up to the shared CoStor server, which deduplicates the
+binary data of stored files to reduce disk usage when identical files are backed up from
+multiple systems.
+
+The server application would be managed through a web UI by the server administrator, and any
+backup archives can be downloaded through this interface by them for any agents they manage.
+
 \chapter{Client implementation}
 
 \section{Summary}
@@ -302,6 +424,11 @@ management tools such as Microsoft Group Policy and Logon Scripts.
 The client is built around Python 3, and PonyORM working in parallel with an SQlite database. 
 This means there are very few dependencies, once the Python project is bundled, and allows
 cross-platform development with a shared codebase.
+
+The current client has been developed and tested on MacOS version 10.15 Catalina with an APFS
+filesystem. Porting file metadata processing to other filesystems is a non-trivial task, due 
+to differences in the representations of this information. APFS is very similar to UNIX 
+filesystems such as ext4, so should be compatible, however this is untested.
 
 \section{The backup process}
 
@@ -325,9 +452,14 @@ The backup process works as follows:
 	A quick test is made to ensure that the client's credentials are valid and that the server is
 	accessible.
 	
+	\item \textbf{Create snapshot definitions}:
+	Entries are created on the server to represent the backup "snaphot" within the database, and
+	assigned to the agent.
+	
 	\item \textbf{Push changed metadata objects}:
 	The server is queried to see if it has seen any objects with matching IDs (hashes), and any
-	objects that are missing are pushed as a single JSON object.
+	objects that are missing are pushed as a single JSON object. The IDs of unchanged objects
+	that are used in this new snapshot are also pushed so they can be attached to the snapshot.
 	
 	\item \textbf{File "primes" are pushed to the server}:
 	Again, the server is queried to check for existing copies of any of the files that are 
@@ -340,10 +472,10 @@ The backup process works as follows:
 
 To allow large files to be uploaded over standard HTTPS connections, with the ability to recover
 from connection issues, files are split into (currently 100MB) chunks, which are individually
-hashed, and then pushed in sequence to the server.
+hashed, and then pushed in sequence to the server. This process is detailed in Figure \ref{fig:lfileupload}.
 
-\begin{figure}[h]
-	\includegraphics[width=\linewidth]{img/lfileupload.png}
+\begin{figure}
+	\includegraphics[width=1.1\linewidth]{img/lfileupload.png}
 	\caption{UML sequence diagram for large file upload}
 	\label{fig:lfileupload}
 \end{figure}
@@ -363,28 +495,31 @@ Should a chunk fail its upload, due to a verification error or network instabili
 is able to retry this chunk once network has been restored, allowing uploads to be "resumed", at 
 least to the resolution of the chunk size.
 
-\section{Management and monitoring}
-
-\todo[inline]{Telemetry and configuration synchronisation is currently not implemented}
-
-On each run, the client checks in with the server to pull down a configuration update, which 
-includes chunk size, backup schedules, backup root, server version, and expiry time for local
-metadata information. This allows it to ensure it is configured correctly, without needing local 
-intervention from the administrator.
-
-It also pushes up telemetry from backups including backup results and network speed statistics, 
-as well as free disk space and local metadata database size.
-
 \section{SQL database and other backup plugins}
 
-\todo[inline]{Plugins are currently not implemented}
+To facilitate safe and reliable backup of specialist server applications, it is necessary to perform
+steps to either shut down or pause its processes before working with its underlying datastore. 
+These would be implemented as plug-in modules to the client, which could be configured along
+with other backup parameters.
 
-Included in the client are plugins to allow the client to automatically dump and backup common
-applications such as Microsoft SQL Server. These plugins are simple Python modules installed in
-the CoStor client install directory. Simple command line scripts can also be defined from the
-CoStor server interface and pulled down with the client config package.
+Taking the example of Microsoft SQL Server, a database dump can be created with the following 
+short SQL command that could be easily wrapped within in a PowerShell script:
 
-Current targeted software includes:
+\begin{figure}[h]
+	\begin{minted}{sql}
+	USE SQLTestDB;
+	GO
+	BACKUP DATABASE SQLTestDB
+	TO DISK = 'c:\tmp\SQLTestDB.bak'
+   		WITH FORMAT,
+      		MEDIANAME = 'SQLServerBackups',
+      		NAME = 'Full Backup of SQLTestDB';
+	GO
+	\end{minted}
+	\caption{An example SQL script to create a backup from a running instance of the Microsoft SQL Server, source: Microsoft Docs\cite{mssql}}
+\end{figure}
+
+The below applications were investigated as candidates for backup plugin development:
 
 \begin{itemize}
 	\item Microsoft SQL Server
@@ -392,37 +527,118 @@ Current targeted software includes:
 	\item Microsoft Active Directory Server\footnote{https://docs.microsoft.com/en-us/windows/win32/ad/backing-up-an-active-directory-server}
 \end{itemize}
 
+Unfortunately, the current implementation of CoStor client does not include support for such plugins, 
+although integration should be trivial.
+
 \section{Filesystem snapshots and integrity protection}
 
-\todo[inline]{The below has not yet been implemented}
-
-To ensure that files cannot change during the backup process, it is necessary to create some form
+If the user intends to backup rapidly changing data which is always being accessed by another 
+process (such as a operating system core files), it is necessary to ensure that files 
+cannot change during the backup process. One way of achieving this is to create some form
 of snapshot of the filesystem while the backup is running. This is currently being investigated
 and will likely make use of LVM, Microsoft Shadow Copies and Time Machine on Linux, Windows and
-MacOS respectively.
+MacOS respectively, however is non-trivial to implement given the differing systems available across
+both the operating systems and filesystem types.
+
+The current implementation assumes the subtree being backed up is not going to change during the
+backup process.
+
+\clearpage
 
 \section{The HashTreeMaker}
 
 This class is the engine behind the creation of the filesystem metadata snapshot, and builds
-simple objects that can be stored in the relational databases used by CoStor.
+simple objects that can be stored in the relational databases used by CoStor. As part of the 
+object creation, metadata is pulled from the \texttt{os.stat} command, and unique ids are generated
+based off SHA-1 hashes of both the metadata, and, in the case of files, binary data.
 
-\begin{figure}[h]
+An early standalone implementation of the HashTreeMaker used during development to dump directory
+structure to JSON for debugging is located in the \texttt{costor\_hasher} directory, however the
+version used within \texttt{costor\_client} has been through many more iterations as it was integrated
+with the rest of this application.
+
+\begin{figure}[b]
 	\includegraphics[width=\linewidth]{img/hasherflow.png}
-	\caption{Process for creating DB representation of directory tree}
+	\caption{Flowchart of process for creating DB representation of directory tree}
 	\label{fig:hasherflow}
 \end{figure}
 
-\todo[inline]{This currently uses SHA1, which is not secure. TODO: move to BLAKE2}
+All database objects are managed by PonyORM\footnote{PonyORM: an advanced object-relational mapper \url{https://ponyorm.readthedocs.io}}
+- the most important entity definitions (database models) are shown in Figure \ref{fig:clientmodels}.
+These definitions make heavy use of foreign key relations to simplify movement around the data.
+
+The \texttt{Object} class represents the metadata for a single filesystem object, and if there is 
+binary data associated with the object (in the case of regular files), the path of the canonical
+version (which can be shared between multiple objects) is stored with its SHA-1 hash as a \texttt{Prime}.
+These objects are created from the \texttt{DirObject}s built by the \texttt{HashTreeMaker}. CoStor
+generates a unique identifier for each \texttt{Object} from the SHA-1 digest of the object path concatenated 
+with the object hash.
+
+The hashes for \texttt{DirObject}s are generated by the \texttt{gethash} function within the \texttt{DirObject} 
+class. This allows the hash to be returned without modifying the object instance, and inadvertently changing its 
+hash. Object hashes are calculated from the SHA-1 digest of the binary data in the case of files, and from the 
+digest of the concatenation of the name, path, stat metadata and the sorted string representation of its 
+children's hashes in the case of a directory. The function is shown in Figure \ref{fig:dirobjgethash}.
+
+\begin{figure}
+	\begin{minted}{python}
+	def gethash(self: DirObject):
+        if self.type is "file":
+            return self.hash
+        elif self.type is "dir":
+            shastring = self.name + self.path + str(self.stat)
+            childhashes = str(sorted(self.children))
+            return sha1str(shastring + childhashes)
+	\end{minted}
+	\caption{Method to generate file hash from \texttt{DirObject} (costor\_client/hasher.py)}
+	\label{fig:dirobjgethash}
+\end{figure}
+
+\begin{figure}
+	\begin{minted}{python}
+    # a specific run of this application
+    class Snapshot(db.Entity):
+        id = PrimaryKey(int, auto=True)
+        timestamp = Required(datetime)
+        complete = Required(bool)
+        synced = Required(bool)
+        objects = Set('Object', reverse='snapshots')
+        root = Required('BackupRoot', reverse='snapshots')
+        topobject = Optional('Object', reverse='topobjectfor')
+        parent = Optional('Snapshot', reverse='child')
+        child = Optional('Snapshot', reverse='parent')
+        primes = Set('Prime', reverse='snapshots')
+    
+    # anything included in the backup tree
+    # type can be "file" or "dir" (or "sym")
+    class Object(db.Entity):
+        id = PrimaryKey(str)  # sha(path+hash)
+        hash = Required(str)
+        name = Required(str)
+        prime = Optional('Prime', reverse='objects')
+        path = Required(str)
+        type = Required(str)
+        stat = Required(str)
+        children = Set('Object', reverse='parent')
+        parent = Optional('Object', reverse='children')
+        snapshots = Set('Snapshot', reverse='objects')
+        topobjectfor = Optional('Snapshot')
+        depth = Required(int)
+
+    # file path to object hash mappings
+    class Prime(db.Entity):
+        filehash = PrimaryKey(str)
+        paths = Set('Path', reverse='target')
+        firstseen = Required(datetime, sql_default='CURRENT_TIMESTAMP')
+        lastseen = Required(datetime, sql_default='CURRENT_TIMESTAMP')
+        objects = Set('Object', reverse='prime')
+        snapshots = Set('Snapshot', reverse=None)
+	\end{minted}
+	\caption{PonyORM database entity definitions for client (costor\_client/db.py)}
+	\label{fig:clientmodels}
+\end{figure}
 
 \chapter{Server and datastore implementation}
-
-\section{Current development status}
-
-As of late January 2020, the CoStor server application is very minimal, simply accepting backups 
-into its datastore, and all user interface is through the built in Django Admin pages API. As
-standard model definitions are used, along with the Django REST Framework\footnote{\url{https://www.django-rest-framework.org}},
-building API endpoints to expose this data to a custom front-end application should be incredibly
-straightforward. Work to enable long-running and complex tasks is ongoing.
 
 \section{Overview}
 
@@ -433,10 +649,8 @@ management and monitoring, as well as frameworks to allow replication of backup 
 instances of the server over a standard HTTPS connection.
 
 To allow larger tasks (such as backup archive generation) to run asynchronously of the HTTP
-requests to the web server, a task broker such as Celery\footnote{\url{http://www.celeryproject.org}} 
-is used.
-
-\clearpage
+requests to the web server, it was planned to make use of a task broker such as Celery\footnote{\url{http://www.celeryproject.org}} 
+, however this is not implemented within this version of CoStor.
 
 \section{High-level data architecture}
 
@@ -467,42 +681,67 @@ with the filename being the object's ID.
 
 \section{Management UI}
 
-This user interface provides access to all day to day configuration tasks, shows telemetry for
-all clients and replication status and allows an administrator to browse the directory tree of
-backup snapshots for any agent enrolled against the server.
+CoStor server makes use of the built in Django Admin package for management of database objects 
+and user permissions. There is additionally a custom frontend used to browsing registered agents,
+their backup tasks (backup roots), snapshots and the file trees of each snapshot.
 
-\subsection{Monitoring}
+Once a snapshot has been located by the user, there is the option to download a copy of that
+snapshot's contents as a \texttt{tar.bz2} archive.
 
-Below is a wireframe of the monitoring view for CoStor clients enrolled against the server. This
-view allows an administrator to check at a glance whether agents have checked in recently, total
-and individual disk usage and any recent errors. It also shows the result of recent automatic 
-maintenance tasks.
-
-\subsection{Data browser}
-
-Mockup of data browser UI
+\begin{figure}
+	\includegraphics[width=0.75\linewidth]{img/screenshots/agent}
+	\includegraphics[width=0.75\linewidth]{img/screenshots/snapshots}
+	\includegraphics[width=0.75\linewidth]{img/screenshots/snapshot}
+	\caption{Screenshots of the CoStor browser}
+	\label{fig:browser}
+\end{figure}
 
 \section{Restoring backups}
 \label{sec:restoringbackups}
 
-\todo[inline]{Restoration has not yet been fully implemented}
-
-There are two main procedures for restoring backups from CoStor, depending on whether the data
-is stored on the local server (a direct restore) or whether data is being restored from 
-geo-replicated copies of the database, in the event the site's own instance has failed.
-
 \subsection{Direct (local) restore}
 
 These are the most straightforward of restores, the administrator simply has to find a directory
-or object within the data browser interface for an agent and snapshot within the web UI for their 
+or object within the data browser interface  for an agent and snapshot within the web UI (Figure \ref{fig:browser}) for their 
 site's local instance of CoStor server, before requesting a restore package be generated. CoStor 
 then re-builds the original directory tree selected from database objects and creates an archive
 of the backup which can be downloaded and restored manually.
 
+This is built by recursively traversing through the directory tree, starting from the object defined in the 
+snapshot as the \texttt{topobject}. First the directory structure is rebuilt in a temporary 
+directory (\texttt{/tmp/costordownload/<snapshotid>}), with file permissions, UIDs and GIDs 
+restored from the object's \texttt{stat} attribute which was generated from the \texttt{os.stat}
+package when the client initially catalogued the file.
+
+Once the tree is complete, this is archived into a \texttt{tar.bz2} package, the temporary 
+uncompressed structure is removed and the archive is delivered to the user's browser.
+
+This method does have some downsides:
+
+\begin{itemize}
+	\item An in place restore (eg from a context menu) is 
+		obviously impossible, although it would require considerable research to be able to reliably
+		hook into the supported OS' file explorer context menu APIs.
+	\item The user cannot currently
+		restore their own data, the archive would need to be created by the administrator.
+	\item This archive is generated synchronously on the web server thread. Obviously with very
+		very large backups, it would be far more sensible to move this logic into an asynchronous
+		task runner.
+	\item It is not possible to request a single file from a snapshot, nor can you view version
+		history for a single file
+\end{itemize}
+
+Ultimately, it would make sense to implement a self-service restoration interface within the CoStor
+client, which could vastly improve the end-user experience.
+
 \subsection{Remote (disaster recovery) restore}
 
-In the event that the instance of CoStor has failed for the site that is being backed up, there
-are additional steps.
+\textit{\textbf{NOTE:} the functionality detailed below has not been implemented in this version of CoStor, as there is no completed support for multiple-instance replication. It is however left as context to other architectural decisions made throughout CoStor}
+
+\subsubsection{Using offsite instance to restore individual snapshots}
+
+In the event that the instance of CoStor has failed for the site that is being backed up, it should
+be possible to restore a backup from another site's instance of CoStor.
 
 \begin{enumerate}
 	\item As all metadata for replicated sites is encrypted, a valid master decryption key must
@@ -518,9 +757,9 @@ are additional steps.
 	written to the restoration archive.
 \end{enumerate}
 
-\subsection{Local (disaster recovery with new server) restore}
+\subsubsection{Restoring entire datastore from offsite to replacement CoStor server}
 
-In the event that the hardware running CoStor has to be replaced, it is possible to replicate
+In the event that the hardware running CoStor has to be replaced, it should be possible to replicate
 all data for that site back to the new server from the replicated copies across other sites.
 
 \begin{enumerate}
@@ -534,69 +773,46 @@ all data for that site back to the new server from the replicated copies across 
 	in the direct (local) restore procedure.
 \end{enumerate}
 
-\section{Automated maintenance tasks}
+\section{Automated maintenance}
 
-To ensure that the CoStor server can run for extended periods of time without requiring regular
-maintenance, a series of day-to-day tasks are automated. These include:
+Due to the use of the Django ORM for management of all data storage, including file storage
+of object primes, CoStor is very resilient to datastore inconsistencies. All database models
+are defined with \texttt{on\_delete} actions to allow the database to automatically prune
+itself once a snapshot, backup root or agent is removed.
 
-\begin{itemize}
-	\item \textbf{Purging of old data}:
-	CoStor will automatically purge old snapshots and orphaned metadata entries once the retention
-	window set by the administrator has expired.
-	
-	\item \textbf{Disk space monitoring}:
-	Should the disk space become limited on the host, an email will be sent to the administrator
-	to notify them that this is the case before backups fail.
-	
-	\item \textbf{Hard drive SMART testing}:
-	CoStor can be configured to automatically run periodic SMART tests on hard drives within the 
-	server, and notify administrators in the event of an anticipated failure. This very simply runs
-	the \texttt{smartctl}\footnote{\url{https://linux.die.net/man/8/smartctl}} command and parses 
-	the command line response.
-	
-	\item \textbf{Replication configuration updates}:
-	CoStor is clever enough to automatically change replication targets, should any of its currently 
-	selected targets become unavailable for whatever reason (such as lack of disk space or hardware 
-	failure).
-	
-	\item \textbf{Offline client notifications}:
-	If an instance of the client hasn't completed a backup in a defined period of time, the 
-	administrator will be notified to allow them to investigate.
-\end{itemize}
-
-These tasks are run on a fixed schedule, prior to replication tasks running, in a Celery task
-runner.
+All data entry is additionally validated before being written, to ensure the database cannot
+contain invalid data.
 
 \chapter{Multi-site replication}
 
-\todo[inline]{The mechanics for this are currently still being prototyped.}
+\textit{\textbf{NOTE:} the functionality detailed below has not been implemented in this version of CoStor. It is however left as context to other architectural decisions made throughout CoStor}
 
-The data to manage multi-site restores is stored in a globally replicated database, which 
+The data to manage multi-site restores should be stored in a globally replicated database, which 
 contains information such as the replication status of all snapshot directory trees and file 
 "prime" objects, anonymised agent ID to site mappings, and synchronisation job objects to track
 when and to where objects are replicated.
 
-Each site manages its own replications, and responds to replication requests from other servers
+Each site would manage its own replications, and respond to replication requests from other servers
 within the network. All objects are identified globally by the hash of their contents, and 
-database objects are replicated as encrypted JSON documents. File "primes" are transferred using
-the large file upload protocol used by the clients (outlined in Figure \ref{fig:lfileupload})
+database objects would be replicated as encrypted JSON documents. File "primes" would transferred
+between sites using the large file upload protocol used by the clients (outlined in Figure \ref{fig:lfileupload})
 
-The overall goal of the replication system is to ensure there are at least two redundant, offsite
-copies of all data. This is performed by selecting replication targets randomly, weighted by 
+The overall goal of the replication system would be to ensure there are at least two redundant, offsite
+copies of all data. This would be performed by selecting replication targets randomly, weighted by 
 free disk space, and by incrementally scheduling the replication tasks during a configured
 maintenance window (normally overnight when the network is quiet).
 
 \section{Data distribution and sharding}
 
-Each server will choose two sites to distribute its data across to. This means that each instance
-of CoStor will be holding the backup data of its own site, plus compressed copies of two other
-sites backups.
+Each server would choose two sites to distribute its data across to. This means that each instance
+of CoStor would be holding the backup data of its own site, plus compressed copies of two other
+sites' backups.
 
 \section{Replication management database}
 
 To allow all federated instances of CoStor to collaborate on managing replication tasks, and to
 enable restoration from federated data even if the master database for that site is unavailable 
-(in the event of a server failure), the replication data is synchronised across all servers.
+(in the event of a server failure), the replication data would be synchronised across all servers.
 
 All operations on these database tables are wrapped such that an API request is made to all other
 servers to update them immediately. Additionally, before a replication task commences, a full
@@ -619,10 +835,6 @@ As almost every object in CoStor is referenced by a unique and anonymous ID, the
 risk in sharing this data with other servers.
 
 \section{Securely synchronising data}
-
-\todo[inline]{The following concept relies heavily on file "primes" being stored in CoStor with
-convergent encryption\cite{macbac-lisa}, for cross-site deduplication, which has not yet been 
-implemented in the core CoStor client and server applications.}
 
 \large \textit{"How do we share data across sites without risking breach of confidentiality?"}
 \normalsize
@@ -651,16 +863,43 @@ site's local DbFile store, where they may come in useful for local backups as we
 
 \chapter{Testing and evaluation}
 
-Beyond being a cheap, self-hosted option to cloud backup, CoStor has two main goals:
+The most important goal of a backup system is the ability to accurately first store, and then reproduce
+a copy of the backup target from its datastore.
 
-\section{Being a reliable backup solution}
+For the purpose of testing, the \texttt{cores\_hasher} directory within the project repository was set
+as the backup root, and CoStor client was run to generate a backup to the server. This backup was 
+downloaded as a \texttt{tar.bz2} from the CoStor management UI, and extracted alongside a copy of
+the \texttt{cores\_hasher} test directory.
 
-Testing for actual backup performance, and fault-tolerance, using a combination of real-world data
-such as test installs of operating systems, and backups of my various machines!
+At first glance, it would be sensible to create a matching \texttt{tar.bz2} archive of the test files
+locally, and binary diff that against the archive given to us by CoStor. Unfortunately, this is not
+likely to be successful, as modification and creation timestamps are not preserved by the backup 
+process.
 
-\section{Being easy to use and manage}
+The two copies of the test directory were compared using the GNU diff tool, using the \texttt{--recursive}
+flag to allow it to traverse all the way through the tree. Running this tool confirmed both
+directories were identical, which concludes that the data must be the same.
 
-Testing the web management panel and installation process using user studies.
+As this is a fairly small dataset, file permissions and groups were also checked by hand, and
+the restored copy of the directory contained all of the correct metadata.
+
+Although it would be worthwhile to perform more comprehensive testing on a larger directory tree,
+performing all testing had to be completed locally on the development MacBook, as any work on
+remote servers would be rendered fairly difficult thanks to my uplink being provided by a fairly flaky
+cellular data dongle. Additionally, the current synchronous archive generation method used by the web
+UI would unlikely be very performant with larger backups.
+
+\begin{figure}
+	\includegraphics[width=1.1\linewidth]{img/screenshots/perms}
+	\caption{Output of \texttt{ls -alR} for the original and restored versions of the test directory}
+	\label{fig:perms}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[width=0.9\linewidth]{img/screenshots/diff}
+	\caption{Output of the \texttt{diff --recursive} command on the original and restored versions of the test directory}
+	\label{fig:diff}
+\end{figure}
 
 % use the following and \cite{} as above if you use BibTeX
 % otherwise generate bibtem entries

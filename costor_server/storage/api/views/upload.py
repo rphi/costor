@@ -79,10 +79,15 @@ def append_to_session(request):
     if request.data['sequenceno'] == session.expectedparts:
         session.status = "C"
 
+    if session.status is "N":
+        session.status = "U"
+        return Response("Received first part.")
     if session.status is "C":
         return Response("Successfully uploaded file, all parts received")
     if session.status is "U":
         return Response("Received part.")
+
+    return Response("Received part.")
 
 
 @api_view(['GET'])

@@ -1,0 +1,10 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+	\PYG{n}{USE} \PYG{n}{SQLTestDB}\PYG{p}{;}
+	\PYG{k}{GO}
+	\PYG{n}{BACKUP} \PYG{k}{DATABASE} \PYG{n}{SQLTestDB}
+	\PYG{k}{TO} \PYG{n}{DISK} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}c:\PYGZbs{}tmp\PYGZbs{}SQLTestDB.bak\PYGZsq{}}
+   		\PYG{k}{WITH} \PYG{n}{FORMAT}\PYG{p}{,}
+      		\PYG{n}{MEDIANAME} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}SQLServerBackups\PYGZsq{}}\PYG{p}{,}
+      		\PYG{n}{NAME} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}Full Backup of SQLTestDB\PYGZsq{}}\PYG{p}{;}
+	\PYG{k}{GO}
+\end{Verbatim}
