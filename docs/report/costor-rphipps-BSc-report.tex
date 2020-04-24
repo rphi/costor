@@ -246,7 +246,7 @@ More information is available at \url{https://www.zmanda.com/amanda-community-ed
 
 \subsubsection{GlusterFS}
 
-The Gluster filesystem is a "software scalable network filesystem"\cite{gluster-home}, which 
+The Gluster filesystem is a "software scalable network filesystem"\cite{gluster}, which 
 allows systems administrators to build complex filesystems across multiple physical machines
 using commodity hardware. Gluster is targeted at engineers designing private cloud environments
 which need large volumes of storage accessible from many devices, and has a huge number of 
@@ -264,7 +264,7 @@ required by CoStor, where each site has its own volume, with its own georeplicat
 however this would be very difficult to automatically provision from the CoStor web interface, 
 and should be mostly unnecessary given the data structure used for backups.
 
-More information is available at \url{https://www.gluster.org} \cite{gluster-home}
+More information is available at \url{https://www.gluster.org} \cite{gluster}
 
 \subsection{Case study: Git}
 
@@ -367,11 +367,15 @@ The basic topology of a CoStor network would be as follows:
 	networks and in different physical locations. These communicate over the internet through
 	a replication API to keep a redundant copy of all data from all servers. They can restore
 	data from any site within the group in the event that a site's server fails, assuming the 
-	target site's encryption key is provided.
+	target site's encryption key is provided. The replication is explained in more detail in 
+	Chapter \ref{chap:multisite}.
 \end{itemize}
 
-\todo[inline]{TODO: Insert diagram of topology, and describe how data is distributed across the 
-members of the CoStor network.}
+\begin{figure}
+	\includegraphics[width=\linewidth]{img/replication.png}
+	\caption{Example of a multi-site deployment of CoStor}
+	\label{fig:multisite}
+\end{figure}
 
 \section{Specimen use case}
 
@@ -784,8 +788,9 @@ All data entry is additionally validated before being written, to ensure the dat
 contain invalid data.
 
 \chapter{Multi-site replication}
+\label{chap:multisite}
 
-\textit{\textbf{NOTE:} the functionality detailed below has not been implemented in this version of CoStor. It is however left as context to other architectural decisions made throughout CoStor}
+\textit{\textbf{NOTE:} the functionality detailed in this chapter has not been implemented in this version of CoStor. It is however left as context to other architectural decisions made throughout the application}
 
 The data to manage multi-site restores should be stored in a globally replicated database, which 
 contains information such as the replication status of all snapshot directory trees and file 
@@ -878,7 +883,7 @@ process.
 
 The two copies of the test directory were compared using the GNU diff tool, using the \texttt{--recursive}
 flag to allow it to traverse all the way through the tree. Running this tool confirmed both
-directories were identical, which concludes that the data must be the same.
+directories were identical at a binary level, which concludes that the data must be the same.
 
 As this is a fairly small dataset, file permissions and groups were also checked by hand, and
 the restored copy of the directory contained all of the correct metadata.
